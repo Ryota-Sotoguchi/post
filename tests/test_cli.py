@@ -37,6 +37,26 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(pending, [("2026-04-28", "18:00"), ("2026-04-29", "08:00")])
 
+    def test_pending_slot_runs_caps_backlog_after_a_long_outage(self) -> None:
+        # State left behind by an outage must not fan out into months of posts.
+        pending = pending_slot_runs(
+            datetime(2026, 8, 25, 19, 0),
+            ["08:00", "12:00", "18:00"],
+            DaemonState(current_date="2026-06-01", completed_slots=["08:00"]),
+        )
+
+        self.assertEqual(
+            pending,
+            [
+                ("2026-08-24", "08:00"),
+                ("2026-08-24", "12:00"),
+                ("2026-08-24", "18:00"),
+                ("2026-08-25", "08:00"),
+                ("2026-08-25", "12:00"),
+                ("2026-08-25", "18:00"),
+            ],
+        )
+
     def test_run_daemon_invokes_slot_runner_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

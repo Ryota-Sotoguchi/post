@@ -10,6 +10,7 @@ from typing import Callable
 from mbti_tiktok_bot.config import AppConfig
 
 DEFAULT_DAEMON_TIMES = ("08:00", "12:00", "18:00")
+MAX_BACKLOG_DAYS = 1
 
 
 @dataclass(slots=True)
@@ -79,13 +80,26 @@ def due_slots(now: datetime, scheduled_times: list[str], state: DaemonState) -> 
     return [slot_time for target_date, slot_time in pending_slot_runs(now, scheduled_times, state) if target_date == today]
 
 
-def pending_slot_runs(now: datetime, scheduled_times: list[str], state: DaemonState) -> list[tuple[str, str]]:
+def pending_slot_runs(
+    now: datetime,
+    scheduled_times: list[str],
+    state: DaemonState,
+    max_backlog_days: int = MAX_BACKLOG_DAYS,
+) -> list[tuple[str, str]]:
     today = now.strftime("%Y-%m-%d")
     today_date = now.date()
     state_date = _parse_state_date(state.current_date)
     state_completed = set(state.completed_slots)
     if state_date is None or state_date > today_date:
         state_date = today_date
+        state_completed = set()
+
+    # Stale state would otherwise fan out into one run per slot per missed day.
+    # After a long outage the old posts are worthless anyway, so cap the catch-up
+    # instead of emitting months of backlog in a single run.
+    earliest_date = today_date - timedelta(days=max(max_backlog_days, 0))
+    if state_date < earliest_date:
+        state_date = earliest_date
         state_completed = set()
 
     pending: list[tuple[str, str]] = []
