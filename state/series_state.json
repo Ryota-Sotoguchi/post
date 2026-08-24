@@ -1,0 +1,54 @@
+{
+  "next_post_index": 104,
+  "topic_history": [
+    {
+      "key": "generated_d5597e3e07c0",
+      "name": "が本命だけに見せる距離の縮め方",
+      "theme": "恋愛",
+      "blueprint": "like_attitude",
+      "source": "procedural"
+    },
+    {
+      "key": "trust_sign",
+      "name": "が本気で心を許したサイン",
+      "theme": "人間関係",
+      "blueprint": "trust_sign",
+      "source": "seed"
+    },
+    {
+      "key": "crush_actions",
+      "name": "が脈ありの時にする行動",
+      "theme": "恋愛",
+      "blueprint": "crush_actions",
+      "source": "seed"
+    },
+    {
+      "key": "friendship_shift",
+      "name": "が仲良くなるほど出る素の反応",
+      "theme": "人間関係",
+      "blueprint": "friendship_shift",
+      "source": "seed"
+    },
+    {
+      "key": "line_shift",
+      "name": "のLINEが急に変わる瞬間",
+      "theme": "恋愛",
+      "blueprint": "line_shift",
+      "source": "seed"
+    },
+    {
+      "key": "stress_signal",
+      "name": "がしんどい時に出るサイン",
+      "theme": "心理",
+      "blueprint": "stress_signal",
+      "source": "seed"
+    },
+    {
+      "key": "攻略",
+      "name": "の攻略で効く接し方",
+      "theme": "攻略",
+      "blueprint": "攻略",
+      "source": "seed"
+    }
+  ]
+}

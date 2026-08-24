@@ -1,0 +1,101 @@
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from pathlib import Path
+
+
+def _read_env_file(path: Path) -> dict[str, str]:
+    raw_bytes = path.read_bytes()
+    text = None
+    for encoding in ["utf-8-sig", "utf-8", "cp932"]:
+        try:
+            text = raw_bytes.decode(encoding)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        text = raw_bytes.decode("utf-8", errors="ignore")
+
+    values: dict[str, str] = {}
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        normalized_value = value.strip()
+        if len(normalized_value) >= 2 and normalized_value[0] == normalized_value[-1] and normalized_value[0] in {'"', "'"}:
+            normalized_value = normalized_value[1:-1]
+        values[key.strip()] = normalized_value
+    return values
+
+
+def _load_settings(project_root: Path) -> dict[str, str]:
+    settings: dict[str, str] = {}
+    env_path = project_root / ".venv" / ".env"
+    if env_path.exists():
+        settings.update(_read_env_file(env_path))
+    settings.update(os.environ)
+    return settings
+
+
+def _bool_env(settings: dict[str, str], name: str, default: bool = False) -> bool:
+    raw_value = settings.get(name)
+    if raw_value is None:
+        return default
+    return raw_value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _path_env(settings: dict[str, str], project_root: Path, name: str, default: str) -> Path:
+    raw_value = settings.get(name, default)
+    candidate = Path(raw_value)
+    if candidate.is_absolute():
+        return candidate
+    return project_root / candidate
+
+
+@dataclass(slots=True)
+class AppConfig:
+    project_root: Path
+    output_dir: Path
+    assets_dir: Path
+    official_images_dir: Path
+    state_dir: Path
+    openai_api_key: str | None
+    openai_model: str
+    openai_base_url: str
+    video_width: int
+    video_height: int
+    daily_posts: int
+    topic_depth: str
+    default_hashtags: list[str]
+    phone_export_auto: bool
+    phone_export_dir: Path
+
+
+def load_config(project_root: Path | None = None) -> AppConfig:
+    resolved_root = project_root or Path.cwd()
+    settings = _load_settings(resolved_root)
+
+    default_hashtags = settings.get(
+        "DEFAULT_HASHTAGS",
+        "#MBTI #mbti診断 #16personalities #性格診断",
+    ).split()
+
+    return AppConfig(
+        project_root=resolved_root,
+        output_dir=resolved_root / "out",
+        assets_dir=resolved_root / "assets" / "mbti_images",
+        official_images_dir=resolved_root / settings.get("MBTI_IMAGES_DIR", "images"),
+        state_dir=resolved_root / "state",
+        openai_api_key=settings.get("OPENAI_API_KEY") or None,
+        openai_model=settings.get("OPENAI_MODEL", "gpt-4.1-mini"),
+        openai_base_url=settings.get("OPENAI_BASE_URL", "https://api.openai.com/v1"),
+        video_width=int(settings.get("VIDEO_WIDTH", "1080")),
+        video_height=int(settings.get("VIDEO_HEIGHT", "1920")),
+        daily_posts=int(settings.get("DAILY_POSTS", "3")),
+        topic_depth=(settings.get("TOPIC_DEPTH", "deep").strip().lower() or "deep"),
+        default_hashtags=default_hashtags,
+        phone_export_auto=_bool_env(settings, "PHONE_EXPORT_AUTO", default=False),
+        phone_export_dir=_path_env(settings, resolved_root, "PHONE_EXPORT_DIR", "delivery/phone"),
+    )

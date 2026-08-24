@@ -1,0 +1,17 @@
+.venv/
+.venv-linux/
+__pycache__/
+*.pyc
+out/
+.env
+delivery/
+test-output/
+tmp/
+logs/
+.pytest_cache/
+*:Zone.Identifier
+*.egg-info/
+
+# 16Personalities 風のキャラ素材は権利リスクがあるため公開リポジトリに載せない。
+# Phase 2c の assets/type_photos/ で置き換える。
+images/

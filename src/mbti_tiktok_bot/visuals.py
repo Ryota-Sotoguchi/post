@@ -1,0 +1,2165 @@
+from __future__ import annotations
+
+import hashlib
+import json
+import shutil
+from dataclasses import dataclass, replace
+from pathlib import Path
+
+from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+
+from mbti_tiktok_bot.catalog import GROUP_PALETTES
+from mbti_tiktok_bot.config import AppConfig
+from mbti_tiktok_bot.fonts import load_font
+from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene, SceneRenderAssets
+
+
+@dataclass(frozen=True, slots=True)
+class LayoutProfile:
+    title_panel: tuple[int, int, int, int]
+    title_label_left: tuple[int, int, int, int]
+    title_label_right: tuple[int, int, int, int]
+    title_content_region: tuple[int, int, int, int]
+    title_hook_inset: tuple[int, int]
+    thumbnail_card: tuple[int, int, int, int]
+    thumbnail_label_left: tuple[int, int, int, int]
+    thumbnail_label_right: tuple[int, int, int, int]
+    thumbnail_content_region: tuple[int, int, int, int]
+    character_box: tuple[int, int, int, int]
+    density_axis: str
+    density_shift: int
+
+
+PULSE_CHARACTER_BOX = (784, 150, 1044, 680)
+PULSE_MAIN_CARD = (72, 760, 1008, 1648)
+PULSE_THUMBNAIL_CARD = (72, 820, 1008, 1648)
+PULSE_CLOSER_CARD = (72, 720, 1008, 1680)
+# Hard floor for shrink-to-fit; below this Japanese copy stops being legible
+# on a 1080x1920 canvas, so overflowing is the lesser evil.
+ABSOLUTE_MIN_FONT_SIZE = 14
+PROTECTED_JAPANESE_PHRASES = (
+    "仲良くなるほど",
+    "好きな人",
+    "脈あり",
+    "本命だけ",
+    "本気で",
+    "心を許した",
+    "距離の縮め方",
+    "急に変わる瞬間",
+    "素の反応",
+    "最初の1秒",
+    "要チェック",
+    "盛り上がり",
+    "返信速度",
+    "返信の温度差",
+    "本気サイン",
+    "分かる",
+    "見せる",
+    "変わる",
+    "縮める",
+    "出る",
+)
+
+
+def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
+    return load_font(size, bold=bold)
+
+
+def _hex_to_rgba(hex_color: str, alpha: int = 255) -> tuple[int, int, int, int]:
+    return (
+        int(hex_color[1:3], 16),
+        int(hex_color[3:5], 16),
+        int(hex_color[5:7], 16),
+        alpha,
+    )
+
+
+def _make_gradient(width: int, height: int, start_hex: str, end_hex: str) -> Image.Image:
+    start = tuple(int(start_hex[i : i + 2], 16) for i in (1, 3, 5))
+    end = tuple(int(end_hex[i : i + 2], 16) for i in (1, 3, 5))
+    image = Image.new("RGB", (width, height), start)
+    draw = ImageDraw.Draw(image)
+    for y in range(height):
+        ratio = y / max(height - 1, 1)
+        color = tuple(int(start[i] + (end[i] - start[i]) * ratio) for i in range(3))
+        draw.line([(0, y), (width, y)], fill=color)
+    return image.convert("RGBA")
+
+
+def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
+    prohibited_line_start = set("、。！？)]）］】」』〉》ぁぃぅぇぉっゃゅょァィゥェォッャュョー〜・,.:;!?")
+    prohibited_line_end = set("([（［【「『〈《")
+    strong_break = set(" 、。！？,.:;!?")
+    soft_break = set("はがをにでとへもやのねよか")
+    awkward_line_start = set("るれたてないますですど")
+
+    def text_width(value: str) -> int:
+        return draw.textbbox((0, 0), value, font=font)[2]
+
+    def fitted_break_index(value: str) -> int:
+        fit_index = 1
+        for index in range(1, len(value) + 1):
+            if text_width(value[:index]) > max_width:
+                break
+            fit_index = index
+        if fit_index >= len(value):
+            return len(value)
+
+        search_start = max(1, fit_index - 12)
+        for break_chars in (strong_break, soft_break):
+            for index in range(fit_index, search_start - 1, -1):
+                previous = value[index - 1]
+                following = value[index] if index < len(value) else ""
+                if following in prohibited_line_start or previous in prohibited_line_end:
+                    continue
+                if previous in break_chars:
+                    return index
+
+        while fit_index > 1 and value[fit_index] in prohibited_line_start:
+            fit_index -= 1
+        return fit_index
+
+    def repair_awkward_starts(lines: list[str]) -> list[str]:
+        repaired = list(lines)
+        for index in range(1, len(repaired)):
+            previous = repaired[index - 1]
+            current = repaired[index]
+            if not previous or not current:
+                continue
+            needs_repair = current[0] in awkward_line_start or len(current) <= 2
+            if not needs_repair or len(previous) < 5:
+                continue
+            for move_count in (3, 2, 1):
+                if len(previous) - move_count < 2:
+                    continue
+                candidate_previous = previous[:-move_count].rstrip()
+                candidate_current = previous[-move_count:] + current
+                if (
+                    candidate_previous
+                    and candidate_current[0] not in prohibited_line_start
+                    and text_width(candidate_previous) <= max_width
+                    and text_width(candidate_current) <= max_width
+                ):
+                    repaired[index - 1] = candidate_previous
+                    repaired[index] = candidate_current
+                    break
+        return repaired
+
+    lines: list[str] = []
+    for raw_line in text.splitlines():
+        if not raw_line:
+            lines.append("")
+            continue
+        raw_lines: list[str] = []
+        remaining = raw_line.strip()
+        while remaining:
+            if text_width(remaining) <= max_width:
+                raw_lines.append(remaining)
+                break
+            break_index = fitted_break_index(remaining)
+            head = remaining[:break_index].rstrip()
+            if not head:
+                head = remaining[:1]
+                break_index = 1
+            raw_lines.append(head)
+            remaining = remaining[break_index:].lstrip()
+        lines.extend(repair_awkward_starts(raw_lines))
+    return "\n".join(lines)
+
+
+def _breaks_protected_japanese_phrase(original: str, wrapped: str) -> bool:
+    plain_index = 0
+    break_positions: set[int] = set()
+    for char in wrapped:
+        if char == "\n":
+            break_positions.add(plain_index)
+        elif not char.isspace():
+            plain_index += 1
+
+    plain_original = "".join(char for char in original if not char.isspace())
+    for phrase in PROTECTED_JAPANESE_PHRASES:
+        start = 0
+        while True:
+            found = plain_original.find(phrase, start)
+            if found < 0:
+                break
+            phrase_breaks = range(found + 1, found + len(phrase))
+            if any(position in break_positions for position in phrase_breaks):
+                return True
+            start = found + len(phrase)
+    return False
+
+
+def _fit_wrapped_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    max_height: int,
+    base_size: int,
+    *,
+    bold: bool = False,
+    spacing: int = 8,
+    min_size: int = 24,
+    min_spacing: int = 4,
+) -> tuple[str, ImageFont.ImageFont, int]:
+    resolved_min_size = min(base_size, min_size)
+    resolved_min_spacing = min(spacing, min_spacing)
+    spacing_candidates = list(range(spacing, resolved_min_spacing - 1, -2)) or [resolved_min_spacing]
+
+    size_candidates = list(range(base_size, resolved_min_size - 1, -2))
+    # A box too small for the copy used to fall through to a blind minimum-size
+    # render that spilled outside its panel, so keep shrinking past the caller's
+    # preferred minimum before giving up. Font metrics differ per platform, and
+    # a one-pixel overflow on one machine is still an overflow.
+    size_candidates += list(range(resolved_min_size - 1, ABSOLUTE_MIN_FONT_SIZE - 1, -1))
+
+    best_effort: tuple[tuple[int, int], str, ImageFont.FreeTypeFont, int] | None = None
+
+    for font_size in size_candidates:
+        font = _load_font(font_size, bold=bold)
+        wrapped = _wrap_text(draw, text, font, max_width)
+        breaks_phrase = _breaks_protected_japanese_phrase(text, wrapped)
+        for line_spacing in spacing_candidates:
+            text_box = draw.multiline_textbbox((0, 0), wrapped, font=font, spacing=line_spacing)
+            text_width = text_box[2] - text_box[0]
+            text_height = text_box[3] - text_box[1]
+            overflow = max(text_width - max_width, 0) + max(text_height - max_height, 0)
+            if overflow == 0 and not breaks_phrase:
+                return wrapped, font, line_spacing
+            # Rank fitting-but-phrase-breaking above anything that overflows.
+            rank = (overflow, 1 if breaks_phrase else 0)
+            if best_effort is None or rank < best_effort[0]:
+                best_effort = (rank, wrapped, font, line_spacing)
+
+    if best_effort is not None:
+        _, wrapped, font, line_spacing = best_effort
+        return wrapped, font, line_spacing
+
+    fallback_font = _load_font(resolved_min_size, bold=bold)
+    fallback_wrapped = _wrap_text(draw, text, fallback_font, max_width)
+    return fallback_wrapped, fallback_font, resolved_min_spacing
+
+
+def _measure_multiline_text(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    spacing: int,
+) -> tuple[int, int]:
+    text_box = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing)
+    return text_box[2] - text_box[0], text_box[3] - text_box[1]
+
+
+def _fit_text_block(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    max_width: int,
+    max_height: int,
+    base_size: int,
+    *,
+    bold: bool = False,
+    spacing: int = 8,
+    min_size: int = 24,
+    min_spacing: int = 4,
+) -> tuple[str, ImageFont.ImageFont, int, int, int]:
+    wrapped, font, line_spacing = _fit_wrapped_text(
+        draw,
+        text,
+        max_width,
+        max_height,
+        base_size,
+        bold=bold,
+        spacing=spacing,
+        min_size=min_size,
+        min_spacing=min_spacing,
+    )
+    text_width, text_height = _measure_multiline_text(draw, wrapped, font, line_spacing)
+    return wrapped, font, line_spacing, text_width, text_height
+
+
+def _stack_top(region_top: int, region_bottom: int, item_heights: list[int], gaps: list[int] | None = None) -> int:
+    resolved_gaps = gaps or []
+    total_height = sum(item_heights) + sum(resolved_gaps)
+    region_height = max(region_bottom - region_top, total_height)
+    return region_top + max((region_height - total_height) // 2, 0)
+
+
+def _slam_body_max_height(body_card_top: int) -> int:
+    return max(180, 1688 - body_card_top - 162)
+
+
+def _slam_body_layout(body_card_top: int, body_height: int) -> tuple[int, int]:
+    body_card_height = max(420, 114 + body_height + 48)
+    body_card_bottom = min(1688, body_card_top + body_card_height)
+    body_region_top = body_card_top + 114
+    body_region_bottom = body_card_bottom - 48
+    body_y = body_region_top + max((body_region_bottom - body_region_top - body_height) // 2, 0)
+    return body_y, body_card_bottom
+
+
+def _avoid_title_panel_box(
+    content_package: ContentPackage,
+    box: tuple[int, int, int, int],
+    *,
+    gap: int = 24,
+    padding: int = 24,
+    canvas_height: int = 1920,
+) -> tuple[int, int, int, int]:
+    panel = _title_layout(content_package)["panel"]
+    forbidden_top = max(padding, panel[1] - gap)
+    forbidden_bottom = min(canvas_height - padding, panel[3] + gap)
+    box_height = box[3] - box[1]
+    min_top = padding
+    max_top = max(padding, canvas_height - padding - box_height)
+    base_top = min(max(box[1], min_top), max_top)
+
+    candidate_tops = {
+        base_top,
+        min(max(panel[1] - gap - box_height, min_top), max_top),
+        min(max(panel[3] + gap, min_top), max_top),
+    }
+
+    def overlap_length(top: int) -> int:
+        bottom = top + box_height
+        return max(0, min(bottom, forbidden_bottom) - max(top, forbidden_top))
+
+    best_top = min(candidate_tops, key=lambda top: (overlap_length(top), abs(top - base_top)))
+    return _offset_box(box, dy=best_top - box[1])
+
+
+def _scene_top_clearance(content_package: ContentPackage, gap: int = 24) -> int:
+    return _title_layout(content_package)["panel"][3] + gap
+
+
+def _scene_top_shift(content_package: ContentPackage, top: int, gap: int = 24) -> int:
+    return max(0, _scene_top_clearance(content_package, gap) - top)
+
+
+def _slam_label_box(content_package: ContentPackage) -> tuple[int, int, int, int]:
+    return _avoid_title_panel_box(content_package, (80, 520, 330, 604))
+
+
+def _style_offset(content_package: ContentPackage) -> int:
+    seed = f"{content_package.series_name}|{content_package.format_name}|{content_package.theme}"
+    return sum(ord(char) for char in seed) % 5
+
+
+def _visual_seed(content_package: ContentPackage, *, include_mbti: bool = True) -> int:
+    parts = [content_package.series_name, content_package.format_name, content_package.theme]
+    if include_mbti:
+        parts.append(content_package.mbti_type)
+    digest = hashlib.sha256("|".join(parts).encode("utf-8")).digest()
+    return int.from_bytes(digest[:8], "big")
+
+
+def _topic_visual_key(content_package: ContentPackage) -> str:
+    """Return the main illustration direction for a topic, not merely its color motif."""
+    label = f"{content_package.series_name} {content_package.format_name} {content_package.theme}"
+    rules = (
+        ("message", ("LINE", "返信", "連絡", "メッセージ")),
+        ("approach", ("距離", "近づ", "縮め")),
+        ("trust", ("心を許", "本音", "信頼")),
+        ("shelter", ("しんどい", "ストレス", "限界", "不調", "SOS")),
+        ("target", ("攻略", "刺さる", "効く", "接し方")),
+        ("circle", ("友達", "仲良", "人間関係", "素の反応")),
+        ("work", ("仕事", "職場", "働")),
+        ("recharge", ("回復", "休み", "充電", "整え")),
+        ("dialogue", ("会話", "話し方", "コミュニケーション")),
+        ("signal", ("脈あり", "好意", "サイン")),
+        ("affection", ("好きな人", "本命", "恋愛")),
+    )
+    for key, tokens in rules:
+        if any(token in label for token in tokens):
+            return key
+    return "portrait"
+
+
+def _visual_identity(content_package: ContentPackage) -> dict[str, object]:
+    topic_seed = _visual_seed(content_package, include_mbti=False)
+    mbti_seed = _visual_seed(content_package, include_mbti=True)
+    return {
+        "version": 4,
+        "topic_key": hashlib.sha1(
+            f"{content_package.series_name}|{content_package.format_name}|{content_package.theme}".encode("utf-8")
+        ).hexdigest()[:12],
+        "illustration_direction": _topic_visual_key(content_package),
+        "topic_composition": topic_seed % 8,
+        "mbti_type": content_package.mbti_type,
+        "mbti_variant": mbti_seed % 16,
+        "source_policy": "provided-material-only",
+        "thumbnail_scene": 1,
+        "content_scene_start": 2,
+        "thumbnail_theme_label": False,
+        "design_tier": "deluxe",
+        "group_palette": content_package.group_name,
+    }
+
+
+def _motif_key(content_package: ContentPackage) -> str:
+    label = f"{content_package.format_name} {content_package.theme}"
+    if any(token in label for token in ("LINE", "返信", "連絡", "メッセージ")):
+        return "chat"
+    if any(token in label for token in ("攻略", "刺さる", "効く")):
+        return "grid"
+    if any(token in label for token in ("心理", "しんどい", "限界", "不調")):
+        return "pulse"
+    if any(token in label for token in ("人間関係", "信頼", "本音", "心を許")):
+        return "orbit"
+    return "ribbon"
+
+
+def _is_pulse_layout(content_package: ContentPackage) -> bool:
+    return _motif_key(content_package) == "pulse"
+
+
+def _scene_style_index(content_package: ContentPackage, scene_index: int) -> int:
+    content_scene_index = _content_scene_index(content_package, scene_index)
+    return (content_scene_index + _style_offset(content_package)) % 5
+
+
+def _scene_style_key(content_package: ContentPackage, scene: Scene, scene_index: int) -> str:
+    if _is_closer_scene(content_package, scene, scene_index):
+        return "closer"
+
+    content_scene_index = _content_scene_index(content_package, scene_index)
+    scene_total = _content_scene_total(content_package)
+    if content_scene_index == scene_total - 1:
+        return "wrapup"
+
+    cycles = {
+        "chat": ["chat", "bottom_board", "chat", "spotlight", "wrapup"],
+        "grid": ["slam", "spotlight", "bottom_board", "slam", "wrapup"],
+        "pulse": ["spotlight", "bottom_board", "slam", "spotlight", "wrapup"],
+        "orbit": ["spotlight", "chat", "bottom_board", "slam", "wrapup"],
+        "ribbon": ["spotlight", "bottom_board", "chat", "slam", "wrapup"],
+    }
+    cycle = cycles[_motif_key(content_package)]
+    return cycle[_scene_style_index(content_package, scene_index)]
+
+
+def _offset_box(box: tuple[int, int, int, int], dx: int = 0, dy: int = 0) -> tuple[int, int, int, int]:
+    return (box[0] + dx, box[1] + dy, box[2] + dx, box[3] + dy)
+
+
+def _adjust_box(
+    box: tuple[int, int, int, int],
+    *,
+    left: int = 0,
+    top: int = 0,
+    right: int = 0,
+    bottom: int = 0,
+) -> tuple[int, int, int, int]:
+    return (box[0] + left, box[1] + top, box[2] + right, box[3] + bottom)
+
+
+def _layout_variant_index(content_package: ContentPackage) -> int:
+    return _visual_seed(content_package, include_mbti=False) % 3
+
+
+def _variantize_layout_profile(
+    profile: LayoutProfile,
+    *,
+    title_shift: tuple[int, int],
+    thumbnail_shift: tuple[int, int],
+    character_shift: tuple[int, int],
+    title_panel_adjust: tuple[int, int, int, int] = (0, 0, 0, 0),
+    thumbnail_card_adjust: tuple[int, int, int, int] = (0, 0, 0, 0),
+) -> LayoutProfile:
+    return LayoutProfile(
+        title_panel=_adjust_box(
+            _offset_box(profile.title_panel, dx=title_shift[0], dy=title_shift[1]),
+            left=title_panel_adjust[0],
+            top=title_panel_adjust[1],
+            right=title_panel_adjust[2],
+            bottom=title_panel_adjust[3],
+        ),
+        title_label_left=_offset_box(profile.title_label_left, dx=title_shift[0], dy=title_shift[1]),
+        title_label_right=_offset_box(profile.title_label_right, dx=title_shift[0], dy=title_shift[1]),
+        title_content_region=_offset_box(profile.title_content_region, dx=title_shift[0], dy=title_shift[1]),
+        title_hook_inset=profile.title_hook_inset,
+        thumbnail_card=_adjust_box(
+            _offset_box(profile.thumbnail_card, dx=thumbnail_shift[0], dy=thumbnail_shift[1]),
+            left=thumbnail_card_adjust[0],
+            top=thumbnail_card_adjust[1],
+            right=thumbnail_card_adjust[2],
+            bottom=thumbnail_card_adjust[3],
+        ),
+        thumbnail_label_left=_offset_box(profile.thumbnail_label_left, dx=thumbnail_shift[0], dy=thumbnail_shift[1]),
+        thumbnail_label_right=_offset_box(profile.thumbnail_label_right, dx=thumbnail_shift[0], dy=thumbnail_shift[1]),
+        thumbnail_content_region=_offset_box(profile.thumbnail_content_region, dx=thumbnail_shift[0], dy=thumbnail_shift[1]),
+        character_box=_offset_box(profile.character_box, dx=character_shift[0], dy=character_shift[1]),
+        density_axis=profile.density_axis,
+        density_shift=profile.density_shift,
+    )
+
+
+def _apply_layout_variant(profile: LayoutProfile, content_package: ContentPackage) -> LayoutProfile:
+    variant = _layout_variant_index(content_package)
+    pin_pulse_character = _motif_key(content_package) == "pulse"
+
+    def finalize(resolved_profile: LayoutProfile) -> LayoutProfile:
+        if pin_pulse_character:
+            return replace(resolved_profile, character_box=PULSE_CHARACTER_BOX)
+        return resolved_profile
+
+    if variant == 0:
+        return finalize(profile)
+
+    if profile.density_axis == "vertical":
+        if variant == 1:
+            return finalize(
+                _variantize_layout_profile(
+                    profile,
+                    title_shift=(0, -72),
+                    thumbnail_shift=(20, 40),
+                    character_shift=(-48, -36),
+                    title_panel_adjust=(-12, -8, 20, 24),
+                    thumbnail_card_adjust=(-6, 0, 18, 26),
+                )
+            )
+        return finalize(
+            _variantize_layout_profile(
+                profile,
+                title_shift=(18, 54),
+                thumbnail_shift=(-24, -26),
+                character_shift=(42, 24),
+                title_panel_adjust=(-18, 0, 12, 22),
+                thumbnail_card_adjust=(-18, -16, 8, 18),
+            )
+        )
+
+    if variant == 1:
+        return finalize(
+            _variantize_layout_profile(
+                profile,
+                title_shift=(-40, 22),
+                thumbnail_shift=(26, 34),
+                character_shift=(-64, 28),
+                title_panel_adjust=(-18, -6, 26, 18),
+                thumbnail_card_adjust=(-10, 0, 24, 24),
+            )
+        )
+    return finalize(
+        _variantize_layout_profile(
+            profile,
+            title_shift=(34, -18),
+            thumbnail_shift=(-22, -14),
+            character_shift=(48, -42),
+            title_panel_adjust=(-8, -12, 18, 24),
+            thumbnail_card_adjust=(-18, -12, 10, 18),
+        )
+    )
+
+
+def _layout_density_score(content_package: ContentPackage) -> int:
+    scene_bodies = [scene.body for scene in content_package.scenes[:5]]
+    average_body = sum(len(body.replace("\n", "")) for body in scene_bodies) // max(len(scene_bodies), 1)
+    title_weight = len(content_package.title.replace("\n", ""))
+    hook_weight = len(content_package.hook.replace("\n", ""))
+    return title_weight + hook_weight + average_body
+
+
+def _base_layout_profile(content_package: ContentPackage) -> LayoutProfile:
+    variant = _motif_key(content_package)
+    if variant == "grid":
+        return LayoutProfile(
+            title_panel=(48, 1010, 646, 1810),
+            title_label_left=(82, 1052, 344, 1132),
+            title_label_right=(386, 1052, 610, 1132),
+            title_content_region=(86, 1188, 606, 1688),
+            title_hook_inset=(28, 16),
+            thumbnail_card=(48, 830, 734, 1780),
+            thumbnail_label_left=(74, 876, 336, 954),
+            thumbnail_label_right=(440, 876, 690, 954),
+            thumbnail_content_region=(86, 1018, 682, 1650),
+            character_box=(666, 110, 1038, 990),
+            density_axis="vertical",
+            density_shift=42,
+        )
+    if variant == "pulse":
+        return LayoutProfile(
+            title_panel=(56, 920, 692, 1722),
+            title_label_left=(90, 964, 360, 1044),
+            title_label_right=(402, 964, 656, 1044),
+            title_content_region=(94, 1098, 652, 1604),
+            title_hook_inset=(28, 16),
+            thumbnail_card=(62, 920, 760, 1772),
+            thumbnail_label_left=(90, 962, 350, 1040),
+            thumbnail_label_right=(466, 962, 716, 1040),
+            thumbnail_content_region=(98, 1106, 708, 1646),
+            character_box=PULSE_CHARACTER_BOX,
+            density_axis="vertical",
+            density_shift=36,
+        )
+    if variant == "orbit":
+        return LayoutProfile(
+            title_panel=(82, 180, 700, 760),
+            title_label_left=(118, 220, 388, 300),
+            title_label_right=(432, 220, 666, 300),
+            title_content_region=(122, 356, 662, 686),
+            title_hook_inset=(28, 16),
+            thumbnail_card=(88, 230, 760, 1380),
+            thumbnail_label_left=(118, 270, 388, 348),
+            thumbnail_label_right=(470, 270, 724, 348),
+            thumbnail_content_region=(122, 414, 712, 1240),
+            character_box=(706, 280, 1030, 1440),
+            density_axis="horizontal",
+            density_shift=34,
+        )
+    if variant == "chat":
+        return LayoutProfile(
+            title_panel=(52, 116, 682, 704),
+            title_label_left=(86, 154, 348, 234),
+            title_label_right=(392, 154, 646, 234),
+            title_content_region=(92, 286, 642, 640),
+            title_hook_inset=(28, 16),
+            thumbnail_card=(52, 170, 700, 1320),
+            thumbnail_label_left=(78, 208, 340, 286),
+            thumbnail_label_right=(430, 208, 674, 286),
+            thumbnail_content_region=(88, 356, 648, 1198),
+            character_box=(728, 470, 1038, 1540),
+            density_axis="horizontal",
+            density_shift=40,
+        )
+    return LayoutProfile(
+        title_panel=(56, 162, 748, 596),
+        title_label_left=(82, 194, 474, 274),
+        title_label_right=(492, 194, 714, 274),
+        title_content_region=(88, 318, 708, 560),
+        title_hook_inset=(34, 12),
+        thumbnail_card=(58, 228, 760, 1216),
+        thumbnail_label_left=(64, 76, 454, 154),
+        thumbnail_label_right=(734, 76, 1016, 154),
+        thumbnail_content_region=(92, 318, 706, 1120),
+        character_box=(630, 380, 1040, 1560),
+        density_axis="horizontal",
+        density_shift=28,
+    )
+
+
+def _layout_profile(content_package: ContentPackage) -> LayoutProfile:
+    profile = _base_layout_profile(content_package)
+    density = _layout_density_score(content_package)
+    raw_shift = (density - 130) // 2
+    shift = max(-profile.density_shift, min(profile.density_shift, raw_shift))
+
+    if profile.density_axis == "vertical":
+        density_profile = LayoutProfile(
+            title_panel=_offset_box(profile.title_panel, dy=shift),
+            title_label_left=_offset_box(profile.title_label_left, dy=shift),
+            title_label_right=_offset_box(profile.title_label_right, dy=shift),
+            title_content_region=_offset_box(profile.title_content_region, dy=shift),
+            title_hook_inset=profile.title_hook_inset,
+            thumbnail_card=_offset_box(profile.thumbnail_card, dy=shift),
+            thumbnail_label_left=_offset_box(profile.thumbnail_label_left, dy=shift),
+            thumbnail_label_right=_offset_box(profile.thumbnail_label_right, dy=shift),
+            thumbnail_content_region=_offset_box(profile.thumbnail_content_region, dy=shift),
+            character_box=_offset_box(profile.character_box, dy=-shift // 2),
+            density_axis=profile.density_axis,
+            density_shift=profile.density_shift,
+        )
+        return _apply_layout_variant(density_profile, content_package)
+
+    density_profile = LayoutProfile(
+        title_panel=_offset_box(profile.title_panel, dx=shift),
+        title_label_left=_offset_box(profile.title_label_left, dx=shift),
+        title_label_right=_offset_box(profile.title_label_right, dx=shift),
+        title_content_region=_offset_box(profile.title_content_region, dx=shift),
+        title_hook_inset=profile.title_hook_inset,
+        thumbnail_card=_offset_box(profile.thumbnail_card, dx=shift),
+        thumbnail_label_left=_offset_box(profile.thumbnail_label_left, dx=shift),
+        thumbnail_label_right=_offset_box(profile.thumbnail_label_right, dx=shift),
+        thumbnail_content_region=_offset_box(profile.thumbnail_content_region, dx=shift),
+        character_box=_offset_box(profile.character_box, dx=-shift // 2),
+        density_axis=profile.density_axis,
+        density_shift=profile.density_shift,
+    )
+    return _apply_layout_variant(density_profile, content_package)
+
+
+def _title_layout(content_package: ContentPackage) -> dict[str, tuple[int, int, int, int] | tuple[int, int]]:
+    profile = _layout_profile(content_package)
+    return {
+        "panel": profile.title_panel,
+        "label_left": profile.title_label_left,
+        "label_right": profile.title_label_right,
+        "content_region": profile.title_content_region,
+        "hook_inset": profile.title_hook_inset,
+    }
+
+
+def _thumbnail_layout(content_package: ContentPackage) -> dict[str, tuple[int, int, int, int] | tuple[int, int]]:
+    profile = _layout_profile(content_package)
+    return {
+        "card": profile.thumbnail_card,
+        "label_left": profile.thumbnail_label_left,
+        "label_right": profile.thumbnail_label_right,
+        "content_region": profile.thumbnail_content_region,
+    }
+
+
+def _character_box(content_package: ContentPackage) -> tuple[int, int, int, int]:
+    return _layout_profile(content_package).character_box
+
+
+def _scene_character_box(content_package: ContentPackage, scene_index: int) -> tuple[int, int, int, int]:
+    if scene_index == 0 or _is_pulse_layout(content_package):
+        return _character_box(content_package)
+    return (720, 190, 1038, 980)
+
+
+def _resolve_illustration_path(config: AppConfig, mbti_type: str) -> Path | None:
+    roots = [config.assets_dir, config.official_images_dir]
+    for root in roots:
+        if not root.exists():
+            continue
+        for stem in (mbti_type, mbti_type.lower(), mbti_type.upper()):
+            for suffix in (".png", ".jpg", ".jpeg", ".webp"):
+                candidate = root / f"{stem}{suffix}"
+                if candidate.exists():
+                    return candidate
+        for candidate in root.iterdir():
+            if candidate.is_file() and candidate.stem.lower() == mbti_type.lower():
+                return candidate
+    return None
+
+
+def _draw_heart(
+    draw: ImageDraw.ImageDraw,
+    center: tuple[int, int],
+    size: int,
+    fill: tuple[int, int, int, int],
+) -> None:
+    x, y = center
+    radius = max(size // 4, 2)
+    draw.ellipse((x - size // 2, y - size // 2, x, y), fill=fill)
+    draw.ellipse((x, y - size // 2, x + size // 2, y), fill=fill)
+    draw.polygon(((x - size // 2, y - size // 4), (x + size // 2, y - size // 4), (x, y + size // 2)), fill=fill)
+    draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=fill)
+
+
+def _draw_topic_illustration_stage(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    accent: str,
+    light: str,
+    content_package: ContentPackage,
+) -> None:
+    """Draw topic-specific scenery so a reused source character becomes a new illustration."""
+    draw = ImageDraw.Draw(image)
+    left, top, right, bottom = box
+    width = right - left
+    height = bottom - top
+    key = _topic_visual_key(content_package)
+    variant = _visual_seed(content_package, include_mbti=False) % 8
+    accent_rgba = _hex_to_rgba(accent, 178)
+    light_rgba = _hex_to_rgba(light, 190)
+    faint = _hex_to_rgba(light, 74)
+
+    if key in {"signal", "affection"}:
+        for index, (dx, dy) in enumerate(((-34, 96), (width - 38, 170), (width - 2, height // 2))):
+            _draw_heart(draw, (left + dx, top + dy), 36 + index * 10, light_rgba if index != 1 else accent_rgba)
+        for radius in (52, 88, 124):
+            draw.ellipse((right - radius - 18, top + 34 - radius, right + radius - 18, top + 34 + radius), outline=faint, width=4)
+    elif key == "approach":
+        step_y = bottom - 92
+        for index in range(4):
+            step_left = left - 34 + index * max(width // 4, 38)
+            draw.rounded_rectangle((step_left, step_y - index * 42, step_left + 108, step_y + 42 - index * 42), radius=18, fill=_hex_to_rgba(light, 62 + index * 24))
+        draw.line((left - 8, top + height // 2, right + 40, top + 84), fill=light_rgba, width=9)
+        draw.polygon(((right + 40, top + 84), (right - 10, top + 76), (right + 22, top + 126)), fill=light_rgba)
+    elif key == "trust":
+        shield = ((left - 42, top + 90), (left + 86, top + 54), (left + 114, top + 196), (left + 22, top + 278), (left - 64, top + 196))
+        draw.polygon(shield, fill=_hex_to_rgba(accent, 112), outline=light_rgba)
+        draw.arc((left - 22, top + 104, left + 64, top + 194), 180, 360, fill=light_rgba, width=9)
+        draw.rounded_rectangle((left - 18, top + 146, left + 60, top + 232), radius=18, fill=_hex_to_rgba(light, 142))
+        draw.ellipse((left + 8, top + 168, left + 34, top + 194), fill=accent_rgba)
+        draw.line((left + 21, top + 190, left + 21, top + 214), fill=accent_rgba, width=7)
+    elif key == "message":
+        phone = (right - 116, top + 20, right + 34, top + 302)
+        draw.rounded_rectangle(phone, radius=30, fill=_hex_to_rgba(light, 70), outline=light_rgba, width=6)
+        draw.rounded_rectangle((phone[0] + 18, phone[1] + 46, phone[2] - 18, phone[3] - 42), radius=18, fill=_hex_to_rgba(accent, 86))
+        for index in range(3):
+            bubble_left = left - 54 + (index % 2) * 44
+            bubble_top = top + 120 + index * 96
+            draw.rounded_rectangle((bubble_left, bubble_top, bubble_left + 154, bubble_top + 64), radius=24, fill=_hex_to_rgba(light, 80 + index * 24))
+    elif key == "shelter":
+        canopy_y = top + 92
+        draw.pieslice((left - 76, canopy_y, right + 80, canopy_y + 300), 180, 360, fill=_hex_to_rgba(light, 104), outline=light_rgba, width=5)
+        draw.line((left + width // 2, canopy_y + 148, left + width // 2, bottom - 28), fill=light_rgba, width=9)
+        draw.arc((left + width // 2 - 8, bottom - 92, left + width // 2 + 72, bottom - 12), 0, 180, fill=light_rgba, width=9)
+        for index in range(4):
+            rain_x = left - 36 + index * max(width // 3, 40)
+            draw.line((rain_x, top + 32, rain_x - 34, top + 98), fill=faint, width=6)
+    elif key == "target":
+        center = (right - 6, top + 136)
+        for radius in (42, 82, 122):
+            draw.ellipse((center[0] - radius, center[1] - radius, center[0] + radius, center[1] + radius), outline=light_rgba if radius == 42 else faint, width=6)
+        draw.line((left - 56, bottom - 28, center[0], center[1]), fill=accent_rgba, width=8)
+        draw.polygon(((center[0], center[1]), (center[0] - 42, center[1] + 5), (center[0] - 6, center[1] + 40)), fill=accent_rgba)
+    elif key == "circle":
+        nodes = ((left - 24, top + 128), (right + 18, top + 82), (right + 44, bottom - 150), (left - 10, bottom - 66))
+        for first, second in zip(nodes, nodes[1:] + nodes[:1]):
+            draw.line((*first, *second), fill=faint, width=6)
+        for index, (x, y) in enumerate(nodes):
+            radius = 28 + (index + variant) % 3 * 8
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=light_rgba if index % 2 else accent_rgba)
+    elif key == "work":
+        desk_y = bottom - 84
+        draw.rounded_rectangle((left - 70, desk_y, right + 68, desk_y + 32), radius=14, fill=light_rgba)
+        draw.line((left - 6, desk_y + 30, left - 28, bottom + 32), fill=light_rgba, width=12)
+        draw.line((right + 6, desk_y + 30, right + 28, bottom + 32), fill=light_rgba, width=12)
+        chart = (right - 132, top + 36, right + 34, top + 204)
+        draw.rounded_rectangle(chart, radius=20, fill=_hex_to_rgba(light, 62), outline=light_rgba, width=5)
+        points = [(chart[0] + 24, chart[3] - 34), (chart[0] + 62, chart[1] + 94), (chart[0] + 104, chart[1] + 112), (chart[2] - 20, chart[1] + 34)]
+        draw.line(points, fill=accent_rgba, width=8, joint="curve")
+    elif key == "recharge":
+        moon_box = (right - 112, top + 12, right + 54, top + 178)
+        draw.ellipse(moon_box, fill=light_rgba)
+        draw.ellipse((moon_box[0] + 48, moon_box[1] - 12, moon_box[2] + 30, moon_box[3] - 36), fill=(0, 0, 0, 0))
+        for point in ((left - 14, top + 112), (right + 20, top + 256), (left + 26, bottom - 134)):
+            _draw_spark(draw, point, 22, accent_rgba)
+        draw.arc((left - 48, bottom - 220, left + 116, bottom - 24), 190, 350, fill=light_rgba, width=12)
+        draw.arc((left - 8, bottom - 230, left + 154, bottom - 42), 150, 310, fill=accent_rgba, width=10)
+    elif key == "dialogue":
+        bubbles = ((left - 78, top + 58, left + 100, top + 180), (right - 68, top + 174, right + 72, top + 286))
+        for index, bubble in enumerate(bubbles):
+            color = _hex_to_rgba(light, 104 + index * 38)
+            draw.rounded_rectangle(bubble, radius=34, fill=color, outline=light_rgba, width=4)
+            tail_x = bubble[2] - 42 if index == 0 else bubble[0] + 32
+            draw.polygon(((tail_x, bubble[3] - 4), (tail_x + 42, bubble[3] - 4), (tail_x + (30 if index == 0 else 8), bubble[3] + 38)), fill=color)
+    else:
+        for offset in range(3):
+            inset = 18 + offset * 34
+            draw.rounded_rectangle((left - inset, top - inset, right + inset, bottom + inset), radius=74 + offset * 18, outline=_hex_to_rgba(light, 78 - offset * 14), width=5)
+
+
+def _draw_label(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str, font, fill, text_fill) -> None:
+    draw.rounded_rectangle(box, radius=34, fill=fill)
+    text_box = draw.textbbox((0, 0), text, font=font)
+    text_x = box[0] + ((box[2] - box[0]) - (text_box[2] - text_box[0])) // 2
+    text_y = box[1] + ((box[3] - box[1]) - (text_box[3] - text_box[1])) // 2 - 2
+    draw.text((text_x, text_y), text, font=font, fill=text_fill)
+
+
+def _draw_shadowed_round_box(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    radius: int,
+    fill: tuple[int, int, int, int],
+    shadow_alpha: int = 120,
+) -> None:
+    shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow_layer)
+    shadow_draw.rounded_rectangle(
+        (box[0] + 10, box[1] + 16, box[2] + 10, box[3] + 16),
+        radius=radius,
+        fill=(0, 0, 0, shadow_alpha),
+    )
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(22))
+    image.alpha_composite(shadow_layer)
+    ImageDraw.Draw(image).rounded_rectangle(box, radius=radius, fill=fill)
+
+
+def _draw_luxury_round_box(
+    image: Image.Image,
+    box: tuple[int, int, int, int],
+    radius: int,
+    fill: tuple[int, int, int, int],
+    accent: str,
+    light: str,
+    shadow_alpha: int = 150,
+) -> None:
+    """Draw a layered premium card with glow, bevel lines, and corner jewels."""
+    glow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
+    glow_draw.rounded_rectangle(
+        (box[0] - 5, box[1] - 5, box[2] + 5, box[3] + 5),
+        radius=radius + 5,
+        outline=_hex_to_rgba(light, 118),
+        width=12,
+    )
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(18))
+    image.alpha_composite(glow_layer)
+
+    _draw_shadowed_round_box(image, box, radius, fill, shadow_alpha)
+    card_draw = ImageDraw.Draw(image)
+    card_draw.rounded_rectangle(box, radius=radius, outline=_hex_to_rgba(light, 170), width=4)
+    inner = (box[0] + 11, box[1] + 11, box[2] - 11, box[3] - 11)
+    card_draw.rounded_rectangle(inner, radius=max(radius - 11, 8), outline=(255, 255, 255, 48), width=2)
+    card_draw.line(
+        (box[0] + radius, box[1] + 5, box[2] - radius, box[1] + 5),
+        fill=(255, 255, 255, 98),
+        width=3,
+    )
+
+    jewel_size = 11
+    for x, y in ((box[0] + 30, box[1] + 30), (box[2] - 30, box[3] - 30)):
+        card_draw.polygon(
+            ((x, y - jewel_size), (x + jewel_size, y), (x, y + jewel_size), (x - jewel_size, y)),
+            fill=_hex_to_rgba(accent, 220),
+            outline=_hex_to_rgba(light, 235),
+        )
+
+
+def _draw_luxury_divider(
+    draw: ImageDraw.ImageDraw,
+    left: int,
+    right: int,
+    y: int,
+    accent: str,
+    light: str,
+) -> None:
+    center = (left + right) // 2
+    draw.line((left, y, center - 34, y), fill=_hex_to_rgba(light, 138), width=3)
+    draw.line((center + 34, y, right, y), fill=_hex_to_rgba(light, 138), width=3)
+    draw.line((left + 34, y + 8, center - 46, y + 8), fill=(255, 255, 255, 42), width=2)
+    draw.line((center + 46, y + 8, right - 34, y + 8), fill=(255, 255, 255, 42), width=2)
+    draw.polygon(
+        ((center, y - 19), (center + 19, y), (center, y + 19), (center - 19, y)),
+        fill=_hex_to_rgba(accent, 232),
+        outline=_hex_to_rgba(light, 245),
+    )
+    draw.ellipse((center - 5, y - 5, center + 5, y + 5), fill=(255, 255, 255, 230))
+
+
+def _draw_title_block(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    title_font,
+    hook_font,
+    label_font,
+) -> None:
+    layout = _title_layout(content_package)
+    panel = layout["panel"]
+    label_left = layout["label_left"]
+    label_right = layout["label_right"]
+    content_region = layout["content_region"]
+    hook_inset_x, hook_inset_y = layout["hook_inset"]
+
+    _draw_shadowed_round_box(image, panel, 52, (10, 17, 41, 176), 145)
+    _draw_label(
+        draw,
+        label_left,
+        f"{content_package.mbti_type} / {content_package.archetype_name}",
+        label_font,
+        (255, 255, 255, 44),
+        "white",
+    )
+    _draw_label(
+        draw,
+        label_right,
+        f"{content_package.series_post_number}/{content_package.series_total_posts}",
+        label_font,
+        (255, 255, 255, 44),
+        "white",
+    )
+    title, fitted_title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        content_package.title,
+        content_region[2] - content_region[0] - 24,
+        max((content_region[3] - content_region[1]) // 2, 120),
+        78,
+        bold=True,
+        spacing=10,
+        min_size=58,
+        min_spacing=6,
+    )
+    hook, fitted_hook_font, hook_spacing, _, hook_height = _fit_text_block(
+        draw,
+        content_package.hook,
+        content_region[2] - content_region[0] - (hook_inset_x * 2),
+        88,
+        42,
+        bold=True,
+        spacing=6,
+        min_size=28,
+        min_spacing=2,
+    )
+    hook_box_height = max(68, hook_height + 34)
+    content_top = _stack_top(content_region[1], content_region[3], [title_height, hook_box_height], [28])
+    title_y = content_top
+    hook_box = (
+        content_region[0],
+        title_y + title_height + 28,
+        content_region[2],
+        title_y + title_height + 28 + hook_box_height,
+    )
+    draw.multiline_text((content_region[0], title_y), title, font=fitted_title_font, fill="white", spacing=title_spacing)
+    draw.rounded_rectangle(hook_box, radius=30, fill=(255, 255, 255, 56))
+    hook_y = hook_box[1] + max((hook_box_height - hook_height) // 2, 0) - 2
+    draw.multiline_text((hook_box[0] + hook_inset_x, hook_y + hook_inset_y), hook, font=fitted_hook_font, fill="white", spacing=hook_spacing)
+
+
+def _has_thumbnail_scene(content_package: ContentPackage) -> bool:
+    return bool(content_package.scenes) and content_package.scenes[0].title == content_package.title and content_package.scenes[0].body == content_package.hook
+
+
+def _content_scene_total(content_package: ContentPackage) -> int:
+    total = len(content_package.scenes)
+    if _has_thumbnail_scene(content_package):
+        total -= 1
+    if _has_closer_scene(content_package):
+        total -= 1
+    return max(total, 1)
+
+
+def _content_scene_index(content_package: ContentPackage, scene_index: int) -> int:
+    return scene_index - 1 if _has_thumbnail_scene(content_package) else scene_index
+
+
+def _is_thumbnail_scene(content_package: ContentPackage, scene: Scene, scene_index: int) -> bool:
+    return _has_thumbnail_scene(content_package) and scene_index == 0 and scene.title == content_package.title and scene.body == content_package.hook
+
+
+def _has_closer_scene(content_package: ContentPackage) -> bool:
+    return bool(content_package.scenes) and content_package.scenes[-1].title == CLOSER_SCENE_TITLE and content_package.scenes[-1].body == CLOSER_SCENE_BODY
+
+
+def _is_closer_scene(content_package: ContentPackage, scene: Scene, scene_index: int) -> bool:
+    return _has_closer_scene(content_package) and scene_index == len(content_package.scenes) - 1 and scene.title == CLOSER_SCENE_TITLE and scene.body == CLOSER_SCENE_BODY
+
+
+def _draw_thumbnail_overlay(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    layout = _thumbnail_layout(content_package)
+    card = layout["card"]
+    label_left = layout["label_left"]
+    label_right = layout["label_right"]
+    content_region = layout["content_region"]
+
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        content_package.title,
+        content_region[2] - content_region[0] - 24,
+        max(content_region[3] - content_region[1] - 160, 300),
+        98,
+        bold=True,
+        spacing=16,
+        min_size=62,
+        min_spacing=8,
+    )
+    title_area_top = max(content_region[1], label_left[3] + 76)
+    card_bottom = min(card[3], max(card[1] + 760, title_area_top + title_height + 174))
+    cover_card = (card[0], card[1], card[2], card_bottom)
+    _draw_luxury_round_box(image, cover_card, 72, (8, 15, 38, 188), accent, light, 168)
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle(
+        (cover_card[0] + 22, title_area_top - 16, cover_card[0] + 30, card_bottom - 104),
+        radius=4,
+        fill=_hex_to_rgba(accent, 225),
+    )
+    title_area_bottom = card_bottom - 116
+    title_y = title_area_top + max((title_area_bottom - title_area_top - title_height) // 2, 0)
+    draw.multiline_text(
+        (content_region[0] + 4, title_y + 7),
+        title,
+        font=title_font,
+        fill=_hex_to_rgba(accent, 126),
+        spacing=title_spacing,
+    )
+    draw.multiline_text((content_region[0], title_y), title, font=title_font, fill="white", spacing=title_spacing)
+    _draw_luxury_divider(draw, content_region[0], content_region[2], card_bottom - 72, accent, light)
+    _draw_label(
+        draw,
+        label_left,
+        f"{content_package.mbti_type} / {content_package.archetype_name}",
+        fonts["scene_tag"],
+        _hex_to_rgba(background, 232),
+        "white",
+    )
+    _draw_label(
+        draw,
+        label_right,
+        f"COVER {content_package.series_post_number}/{content_package.series_total_posts}",
+        fonts["scene_tag"],
+        _hex_to_rgba(accent, 220),
+        "white",
+    )
+
+
+def _draw_content_header(
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    header_box = (54, 72, 650, 166)
+    draw.rounded_rectangle((header_box[0] + 7, header_box[1] + 10, header_box[2] + 7, header_box[3] + 10), radius=42, fill=(0, 0, 0, 54))
+    draw.rounded_rectangle(
+        header_box,
+        radius=42,
+        fill=_hex_to_rgba(background, 222),
+        outline=_hex_to_rgba(light, 176),
+        width=4,
+    )
+    draw.rounded_rectangle(
+        (header_box[0] + 7, header_box[1] + 7, header_box[2] - 7, header_box[3] - 7),
+        radius=35,
+        outline=(255, 255, 255, 38),
+        width=2,
+    )
+    label = f"{content_package.mbti_type}  |  {content_package.format_name}"
+    wrapped, font, spacing, _, text_height = _fit_text_block(
+        draw,
+        label,
+        header_box[2] - header_box[0] - 48,
+        header_box[3] - header_box[1] - 20,
+        30,
+        bold=True,
+        spacing=4,
+        min_size=24,
+        min_spacing=2,
+    )
+    text_y = header_box[1] + max((header_box[3] - header_box[1] - text_height) // 2, 0) - 2
+    draw.multiline_text((header_box[0] + 24, text_y), wrapped, font=font, fill="white", spacing=spacing)
+    draw.ellipse((header_box[2] - 34, header_box[1] + 30, header_box[2] - 14, header_box[1] + 50), fill=_hex_to_rgba(accent))
+    jewel_x = header_box[0] + 14
+    jewel_y = (header_box[1] + header_box[3]) // 2
+    draw.polygon(
+        ((jewel_x, jewel_y - 8), (jewel_x + 8, jewel_y), (jewel_x, jewel_y + 8), (jewel_x - 8, jewel_y)),
+        fill=_hex_to_rgba(light, 230),
+    )
+
+def _draw_scene_style_spotlight(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    scene_total: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    top_shift = _scene_top_shift(content_package, 560)
+    _draw_shadowed_round_box(image, _offset_box((54, 560, 712, 1498), dy=top_shift), 60, (255, 255, 255, 234))
+    _draw_label(draw, _offset_box((94, 604, 408, 692), dy=top_shift), f"0{scene_index + 1} / {scene_total}", fonts["scene_tag"], accent, light)
+    _draw_label(draw, _offset_box((454, 604, 670, 692), dy=top_shift), "POINT", fonts["scene_tag"], _hex_to_rgba(background, 220), "white")
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        500,
+        168,
+        52,
+        bold=True,
+        spacing=10,
+        min_size=34,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        514,
+        336,
+        52,
+        spacing=20,
+        min_size=32,
+        min_spacing=10,
+    )
+    content_top = _stack_top(760 + top_shift, 1296 + top_shift, [title_height, body_height], [42])
+    draw.multiline_text((96, content_top), title, font=title_font, fill=background, spacing=title_spacing)
+    draw.multiline_text((96, content_top + title_height + 42), body, font=body_font, fill="#171717", spacing=body_spacing)
+
+
+def _draw_scene_style_bottom_board(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    scene_total: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    _draw_shadowed_round_box(image, (44, 1040, 1036, 1768), 68, (10, 15, 35, 164), 150)
+    draw.rounded_rectangle((78, 1080, 102, 1690), radius=12, fill=_hex_to_rgba(light, 235))
+    _draw_label(draw, (126, 1084, 390, 1170), f"SCENE {scene_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent, 210), "white")
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        760,
+        180,
+        60,
+        bold=True,
+        spacing=10,
+        min_size=40,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        760,
+        278,
+        46,
+        spacing=18,
+        min_size=30,
+        min_spacing=10,
+    )
+    content_top = _stack_top(1216, 1670, [title_height, body_height], [48])
+    draw.multiline_text((126, content_top), title, font=title_font, fill="white", spacing=title_spacing)
+    draw.multiline_text((126, content_top + title_height + 48), body, font=body_font, fill=(245, 245, 245), spacing=body_spacing)
+    counter_text = f"{scene_index + 1}/{scene_total}"
+    text_box = draw.textbbox((0, 0), counter_text, font=fonts["count"])
+    draw.text((944 - (text_box[2] - text_box[0]), 1108), counter_text, font=fonts["count"], fill=_hex_to_rgba(light, 230))
+
+
+def _draw_scene_style_chat(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        504,
+        176,
+        52,
+        bold=True,
+        spacing=10,
+        min_size=34,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        620,
+        428,
+        46,
+        spacing=18,
+        min_size=30,
+        min_spacing=10,
+    )
+    bubble_a_height = max(270, title_height + 170)
+    bubble_b_height = max(420, body_height + 200)
+    top_shift = _scene_top_shift(content_package, 604)
+    bubble_a = _offset_box((66, 604, 700, 604 + bubble_a_height), dy=top_shift)
+    bubble_b_top = bubble_a[3] + 64
+    bubble_b = (220, bubble_b_top, 994, bubble_b_top + bubble_b_height)
+    _draw_shadowed_round_box(image, bubble_a, 58, (255, 255, 255, 240), 96)
+    _draw_shadowed_round_box(image, bubble_b, 62, _hex_to_rgba(light, 228), 106)
+    draw.polygon([(158, bubble_a[3] - 2), (210, bubble_a[3] + 38), (240, bubble_a[3] - 14)], fill=(255, 255, 255, 240))
+    draw.polygon([(760, bubble_b[3] - 12), (816, bubble_b[3] + 24), (846, bubble_b[3] - 30)], fill=_hex_to_rgba(light, 228))
+    _draw_label(draw, _offset_box((102, 634, 320, 714), dy=top_shift), f"0{scene_index + 1}", fonts["scene_tag"], accent, "white")
+    title_y = bubble_a[1] + max((bubble_a_height - title_height) // 2, 0) + 8
+    body_y = bubble_b[1] + max((bubble_b_height - body_height) // 2, 0) - 6
+    draw.multiline_text((104, title_y), title, font=title_font, fill=background, spacing=title_spacing)
+    draw.multiline_text((258, body_y), body, font=body_font, fill=background, spacing=body_spacing)
+
+
+def _draw_scene_style_slam(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    label_box = _slam_label_box(content_package)
+    title, slam_font, slam_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        520,
+        384,
+        84,
+        bold=True,
+        spacing=2,
+        min_size=52,
+        min_spacing=0,
+    )
+    title_y = max(_stack_top(654, 1088, [title_height]), label_box[3] + 36)
+    draw.multiline_text((78, title_y + 12), title, font=slam_font, fill=_hex_to_rgba(accent, 180), spacing=slam_spacing)
+    draw.multiline_text((86, title_y), title, font=slam_font, fill="white", spacing=slam_spacing)
+    _draw_label(draw, label_box, f"POINT {scene_index + 1}", fonts["scene_tag"], _hex_to_rgba(light, 214), background)
+    body_card_top = max(1120, title_y + title_height + 96)
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        588,
+        _slam_body_max_height(body_card_top),
+        46,
+        spacing=18,
+        min_size=30,
+        min_spacing=10,
+    )
+    body_y, body_card_bottom = _slam_body_layout(body_card_top, body_height)
+    _draw_shadowed_round_box(image, (72, body_card_top, 822, body_card_bottom), 60, (255, 255, 255, 232), 110)
+    draw.rounded_rectangle((112, body_card_top + 40, 506, body_card_top + 88), radius=18, fill=_hex_to_rgba(accent, 210))
+    draw.multiline_text((112, body_y), body, font=body_font, fill="#191919", spacing=body_spacing)
+
+
+def _draw_scene_style_wrapup(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    scene_total: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    card_box = (86, 676, 998, 1586)
+    _draw_shadowed_round_box(image, card_box, 68, (255, 255, 255, 226), 116)
+    _draw_label(draw, (122, 716, 436, 802), f"0{scene_index + 1} / {scene_total}", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, (690, 716, 958, 802), "CHECK", fonts["scene_tag"], _hex_to_rgba(light, 220), background)
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        708,
+        204,
+        60,
+        bold=True,
+        spacing=10,
+        min_size=40,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        704,
+        266,
+        46,
+        spacing=18,
+        min_size=30,
+        min_spacing=10,
+    )
+    content_top = _stack_top(870, 1378, [title_height, body_height], [54])
+    draw.multiline_text((124, content_top), title, font=title_font, fill=background, spacing=title_spacing)
+    draw.multiline_text((124, content_top + title_height + 54), body, font=body_font, fill="#181818", spacing=body_spacing)
+
+
+def _draw_scene_style_closer(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    scene: Scene,
+    scene_index: int,
+    scene_total: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.ellipse((54, 860, 454, 1260), fill=_hex_to_rgba(light, 96))
+    glow_draw.ellipse((746, 548, 1088, 890), fill=_hex_to_rgba(accent, 92))
+    glow = glow.filter(ImageFilter.GaussianBlur(32))
+    image.alpha_composite(glow)
+
+    _draw_shadowed_round_box(image, (78, 620, 1008, 1668), 74, (255, 255, 255, 236), 124)
+    _draw_label(draw, (118, 666, 436, 752), "LAST SLIDE", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, (694, 666, 962, 752), "COMMENT & SHARE", fonts["scene_tag"], _hex_to_rgba(light, 224), background)
+
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        742,
+        190,
+        60,
+        bold=True,
+        spacing=10,
+        min_size=42,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        742,
+        186,
+        46,
+        spacing=18,
+        min_size=30,
+        min_spacing=10,
+    )
+    content_top = _stack_top(842, 1324, [title_height, body_height], [56])
+    draw.multiline_text((126, content_top), title, font=title_font, fill=background, spacing=title_spacing)
+    draw.multiline_text((126, content_top + title_height + 56), body, font=body_font, fill="#181818", spacing=body_spacing)
+
+    comment_text, comment_font, comment_spacing, _, comment_height = _fit_text_block(
+        draw,
+        "合ってたらコメントで教えてね",
+        728,
+        48,
+        38,
+        bold=True,
+        spacing=6,
+        min_size=24,
+        min_spacing=2,
+    )
+    comment_box = (126, 1370, 962, 1370 + max(118, comment_height + 54))
+    draw.rounded_rectangle(comment_box, radius=36, fill=_hex_to_rgba(light, 230))
+    comment_y = comment_box[1] + max((comment_box[3] - comment_box[1] - comment_height) // 2, 0) - 2
+    draw.multiline_text((174, comment_y), comment_text, font=comment_font, fill=background, spacing=comment_spacing)
+    share_text, share_font, share_spacing, _, share_height = _fit_text_block(
+        draw,
+        "友だちに共有して答え合わせしてみて",
+        618,
+        48,
+        30,
+        bold=True,
+        spacing=6,
+        min_size=22,
+        min_spacing=2,
+    )
+    share_box = (164, comment_box[3] + 38, 926, comment_box[3] + 38 + max(102, share_height + 42))
+    draw.rounded_rectangle(share_box, radius=36, fill=_hex_to_rgba(accent, 214))
+    share_y = share_box[1] + max((share_box[3] - share_box[1] - share_height) // 2, 0) - 2
+    draw.multiline_text((232, share_y), share_text, font=share_font, fill="white", spacing=share_spacing)
+
+
+def _draw_pulse_thumbnail_overlay(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    card = PULSE_THUMBNAIL_CARD
+    _draw_luxury_round_box(image, card, 64, (248, 255, 250, 247), accent, light, 148)
+    draw = ImageDraw.Draw(image)
+
+    label_y = card[1] + 42
+    _draw_label(draw, (112, label_y, 432, label_y + 78), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(
+        draw,
+        (676, label_y, 958, label_y + 78),
+        f"COVER {content_package.series_post_number}/{content_package.series_total_posts}",
+        fonts["detail"],
+        _hex_to_rgba(light),
+        background,
+    )
+
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        content_package.title,
+        800,
+        450,
+        90,
+        bold=True,
+        spacing=14,
+        min_size=54,
+        min_spacing=6,
+    )
+    title_area_top = card[1] + 172
+    title_area_bottom = card[3] - 142
+    title_y = title_area_top + max((title_area_bottom - title_area_top - title_height) // 2, 0)
+    draw.multiline_text(
+        (120, title_y + 6),
+        title,
+        font=title_font,
+        fill=_hex_to_rgba(accent, 82),
+        spacing=title_spacing,
+    )
+    draw.multiline_text((116, title_y), title, font=title_font, fill=background, spacing=title_spacing)
+    _draw_luxury_divider(draw, 126, 954, card[3] - 92, accent, light)
+
+
+def _draw_pulse_scene_overlay(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    content_index = _content_scene_index(content_package, scene_index)
+    scene_total = _content_scene_total(content_package)
+    card = PULSE_MAIN_CARD
+    _draw_shadowed_round_box(image, card, 58, (248, 255, 250, 255), 112)
+
+    label_y = card[1] + 40
+    _draw_label(draw, (112, label_y, 334, label_y + 72), f"POINT {content_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(draw, (374, label_y, 646, label_y + 72), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["detail"], _hex_to_rgba(light), background)
+    _draw_label(draw, (742, label_y, 958, label_y + 72), f"{content_index + 1:02d} / {scene_total}", fonts["scene_tag"], _hex_to_rgba(light), background)
+
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        800,
+        170,
+        58,
+        bold=True,
+        spacing=10,
+        min_size=38,
+        min_spacing=5,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        768,
+        352,
+        48,
+        spacing=16,
+        min_size=30,
+        min_spacing=8,
+    )
+
+    title_y = card[1] + 150
+    draw.multiline_text((116, title_y), title, font=title_font, fill=background, spacing=title_spacing)
+
+    body_box = (112, max(title_y + title_height + 48, 1058), 968, 1518)
+    draw.rounded_rectangle(body_box, radius=40, fill=(255, 255, 255, 255))
+    draw.rounded_rectangle((144, body_box[1] + 34, 598, body_box[1] + 82), radius=18, fill=_hex_to_rgba(accent))
+    body_y = body_box[1] + 116 + max((body_box[3] - body_box[1] - 156 - body_height) // 2, 0)
+    draw.multiline_text((150, body_y), body, font=body_font, fill="#181818", spacing=body_spacing)
+
+    draw.rounded_rectangle((112, 1548, 968, 1588), radius=18, fill=_hex_to_rgba(light))
+
+
+def _draw_pulse_closer_overlay(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    scene: Scene,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    card = PULSE_CLOSER_CARD
+    _draw_shadowed_round_box(image, card, 64, (248, 255, 250, 255), 118)
+    _draw_label(draw, (112, 766, 414, 838), "LAST SLIDE", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(draw, (626, 766, 958, 838), "COMMENT & SHARE", fonts["scene_tag"], _hex_to_rgba(light), background)
+
+    title, title_font, title_spacing, _, title_height = _fit_text_block(
+        draw,
+        scene.title,
+        780,
+        170,
+        58,
+        bold=True,
+        spacing=10,
+        min_size=40,
+        min_spacing=6,
+    )
+    body, body_font, body_spacing, _, body_height = _fit_text_block(
+        draw,
+        scene.body,
+        780,
+        210,
+        42,
+        spacing=14,
+        min_size=28,
+        min_spacing=8,
+    )
+    draw.multiline_text((126, 906), title, font=title_font, fill=background, spacing=title_spacing)
+    draw.multiline_text((126, 906 + title_height + 46), body, font=body_font, fill="#181818", spacing=body_spacing)
+
+    comment_text, comment_font, comment_spacing, _, comment_height = _fit_text_block(
+        draw,
+        "合ってたらコメントで教えてね",
+        724,
+        52,
+        36,
+        bold=True,
+        spacing=6,
+        min_size=26,
+        min_spacing=2,
+    )
+    comment_box = (126, 1306, 954, 1416)
+    draw.rounded_rectangle(comment_box, radius=34, fill=_hex_to_rgba(light))
+    comment_y = comment_box[1] + max((comment_box[3] - comment_box[1] - comment_height) // 2, 0) - 2
+    draw.multiline_text((172, comment_y), comment_text, font=comment_font, fill=background, spacing=comment_spacing)
+
+    share_text, share_font, share_spacing, _, share_height = _fit_text_block(
+        draw,
+        "友だちにも共有して答え合わせしてみて",
+        640,
+        52,
+        30,
+        bold=True,
+        spacing=6,
+        min_size=24,
+        min_spacing=2,
+    )
+    share_box = (164, 1454, 916, 1558)
+    draw.rounded_rectangle(share_box, radius=34, fill=_hex_to_rgba(accent))
+    share_y = share_box[1] + max((share_box[3] - share_box[1] - share_height) // 2, 0) - 2
+    draw.multiline_text((218, share_y), share_text, font=share_font, fill="white", spacing=share_spacing)
+
+
+def _draw_pulse_text_overlay(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    if _is_thumbnail_scene(content_package, scene, scene_index):
+        _draw_pulse_thumbnail_overlay(image, draw, content_package, background, accent, light, fonts)
+        return
+    if _is_closer_scene(content_package, scene, scene_index):
+        _draw_pulse_closer_overlay(image, draw, scene, background, accent, light, fonts)
+        return
+    _draw_pulse_scene_overlay(image, draw, content_package, scene, scene_index, background, accent, light, fonts)
+
+
+def _draw_scene_content(
+    image: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    scene: Scene,
+    scene_index: int,
+    content_package: ContentPackage,
+    background: str,
+    accent: str,
+    light: str,
+    fonts: dict[str, ImageFont.ImageFont],
+) -> None:
+    if _is_closer_scene(content_package, scene, scene_index):
+        _draw_scene_style_closer(
+            image,
+            draw,
+            scene,
+            _content_scene_total(content_package),
+            _content_scene_total(content_package),
+            background,
+            accent,
+            light,
+            fonts,
+        )
+        return
+
+    content_scene_index = _content_scene_index(content_package, scene_index)
+    scene_total = _content_scene_total(content_package)
+    style_key = _scene_style_key(content_package, scene, scene_index)
+    if style_key == "spotlight":
+        _draw_scene_style_spotlight(
+            image,
+            draw,
+            content_package,
+            scene,
+            content_scene_index,
+            scene_total,
+            background,
+            accent,
+            light,
+            fonts,
+        )
+        return
+    if style_key == "bottom_board":
+        _draw_scene_style_bottom_board(
+            image,
+            draw,
+            content_package,
+            scene,
+            content_scene_index,
+            scene_total,
+            background,
+            accent,
+            light,
+            fonts,
+        )
+        return
+    if style_key == "chat":
+        _draw_scene_style_chat(image, draw, content_package, scene, content_scene_index, background, accent, light, fonts)
+        return
+    if style_key == "slam":
+        _draw_scene_style_slam(image, draw, content_package, scene, content_scene_index, background, accent, light, fonts)
+        return
+    _draw_scene_style_wrapup(
+        image,
+        draw,
+        content_package,
+        scene,
+        content_scene_index,
+        scene_total,
+        background,
+        accent,
+        light,
+        fonts,
+    )
+
+
+def _draw_spark(draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int, color: tuple[int, int, int, int]) -> None:
+    x, y = center
+    draw.line((x - size, y, x + size, y), fill=color, width=max(2, size // 4))
+    draw.line((x, y - size, x, y + size), fill=color, width=max(2, size // 4))
+    draw.line((x - size // 2, y - size // 2, x + size // 2, y + size // 2), fill=color, width=max(2, size // 5))
+    draw.line((x - size // 2, y + size // 2, x + size // 2, y - size // 2), fill=color, width=max(2, size // 5))
+
+
+def _draw_luxury_canvas_details(
+    draw: ImageDraw.ImageDraw,
+    width: int,
+    height: int,
+    accent: str,
+    light: str,
+    seed: int,
+) -> None:
+    """Add a restrained premium frame and deterministic fine texture to every slide."""
+    outer = (24, 24, width - 24, height - 24)
+    inner = (39, 39, width - 39, height - 39)
+    draw.rounded_rectangle(outer, radius=58, outline=_hex_to_rgba(light, 78), width=3)
+    draw.rounded_rectangle(inner, radius=48, outline=(255, 255, 255, 26), width=2)
+
+    corner = 116
+    for x_sign, y_sign in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
+        x = 56 if x_sign == 1 else width - 56
+        y = 56 if y_sign == 1 else height - 56
+        draw.line((x, y, x + x_sign * corner, y), fill=_hex_to_rgba(accent, 108), width=4)
+        draw.line((x, y, x, y + y_sign * corner), fill=_hex_to_rgba(accent, 108), width=4)
+        jewel_x = x + x_sign * 18
+        jewel_y = y + y_sign * 18
+        draw.polygon(
+            ((jewel_x, jewel_y - 7), (jewel_x + 7, jewel_y), (jewel_x, jewel_y + 7), (jewel_x - 7, jewel_y)),
+            fill=_hex_to_rgba(light, 150),
+        )
+
+    for index in range(84):
+        x = 54 + ((seed >> (index % 24)) + index * 149) % max(width - 108, 1)
+        y = 74 + ((seed >> ((index + 7) % 24)) + index * 233) % max(height - 148, 1)
+        radius = 1 + index % 2
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(255, 255, 255, 15 + (index % 3) * 5))
+
+    _draw_luxury_divider(draw, 94, width - 94, height - 112, accent, light)
+
+
+def _render_background_layer(content_package: ContentPackage, config: AppConfig, destination: Path) -> Path:
+    width = config.video_width
+    height = config.video_height
+    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    image = _make_gradient(width, height, background, accent)
+
+    blur_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    blur_draw = ImageDraw.Draw(blur_layer)
+    blur_draw.ellipse((-120, 1280, 520, 1900), fill=_hex_to_rgba(light, 80))
+    blur_draw.ellipse((670, 80, 1220, 780), fill=_hex_to_rgba(accent, 85))
+    blur_draw.rounded_rectangle((560, 420, 1130, 1600), radius=110, fill=(255, 255, 255, 20))
+    blur_layer = blur_layer.filter(ImageFilter.GaussianBlur(48))
+    image.alpha_composite(blur_layer)
+
+    draw = ImageDraw.Draw(image)
+    motif = _motif_key(content_package)
+    if motif == "chat":
+        for y in range(240, height - 240, 180):
+            draw.rounded_rectangle((84, y, 454, y + 84), radius=28, fill=_hex_to_rgba(light, 26))
+            draw.rounded_rectangle((592, y + 72, 980, y + 172), radius=34, fill=_hex_to_rgba(accent, 22))
+    elif motif == "grid":
+        for x in range(48, width, 182):
+            for y in range(160, height, 248):
+                right = min(x + 128, width - 40)
+                bottom = min(y + 128, height - 40)
+                if right <= x or bottom <= y:
+                    continue
+                draw.rounded_rectangle((x, y, right, bottom), radius=30, outline=_hex_to_rgba(light, 40), width=3)
+    elif motif == "pulse":
+        center_x, center_y = 228, 1320
+        for radius in (120, 210, 300, 390):
+            draw.ellipse((center_x - radius, center_y - radius, center_x + radius, center_y + radius), outline=_hex_to_rgba(light, 36), width=4)
+        draw.ellipse((740, 220, 1040, 520), fill=_hex_to_rgba(accent, 24))
+    elif motif == "orbit":
+        for radius in (170, 280, 390):
+            draw.ellipse((680 - radius, 420 - radius, 680 + radius, 420 + radius), outline=_hex_to_rgba(light, 34), width=3)
+        draw.ellipse((110, 1360, 450, 1700), fill=_hex_to_rgba(accent, 22))
+    else:
+        for offset in range(-height, width, 180):
+            draw.line(
+                [(offset, 0), (offset + height, height)],
+                fill=(255, 255, 255, 14),
+                width=2,
+            )
+        for x in range(0, width, 160):
+            draw.line([(x, 1200), (x + 100, 1560)], fill=_hex_to_rgba(light, 28), width=4)
+
+    luxury_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    luxury_draw = ImageDraw.Draw(luxury_layer)
+    _draw_luxury_canvas_details(
+        luxury_draw,
+        width,
+        height,
+        accent,
+        light,
+        _visual_seed(content_package, include_mbti=False),
+    )
+    image.alpha_composite(luxury_layer)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
+    return destination
+
+
+def _render_text_overlay(
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    config: AppConfig,
+    destination: Path,
+) -> Path:
+    width = config.video_width
+    height = config.video_height
+    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+
+    fonts = {
+        "title": _load_font(78, bold=True),
+        "hook": _load_font(42, bold=True),
+        "thumbnail_title": _load_font(92, bold=True),
+        "thumbnail_hook": _load_font(48, bold=True),
+        "label": _load_font(34, bold=True),
+        "scene_title": _load_font(52, bold=True),
+        "scene_title_large": _load_font(60, bold=True),
+        "slam": _load_font(84, bold=True),
+        "body": _load_font(52),
+        "body_small": _load_font(46),
+        "scene_tag": _load_font(32, bold=True),
+        "detail": _load_font(30, bold=True),
+        "detail_large": _load_font(38, bold=True),
+        "footer": _load_font(30, bold=True),
+        "count": _load_font(40, bold=True),
+    }
+
+    if _is_pulse_layout(content_package):
+        _draw_pulse_text_overlay(image, draw, content_package, scene, scene_index, background, accent, light, fonts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        image.save(destination)
+        return destination
+
+    if _is_thumbnail_scene(content_package, scene, scene_index):
+        _draw_thumbnail_overlay(image, draw, content_package, background, accent, light, fonts)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        image.save(destination)
+        return destination
+
+    _draw_content_header(draw, content_package, background, accent, light, fonts)
+    _draw_scene_content(image, draw, scene, scene_index, content_package, background, accent, light, fonts)
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
+    return destination
+
+
+def _render_character_overlay(
+    content_package: ContentPackage,
+    config: AppConfig,
+    destination: Path,
+    scene_index: int = 0,
+) -> Path:
+    width = config.video_width
+    height = config.video_height
+    _, accent, light = GROUP_PALETTES[content_package.group_name]
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+
+    box = _scene_character_box(content_package, scene_index)
+    glow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow_layer)
+    glow_draw.ellipse((box[0] - 40, box[1] + 30, box[2] + 50, box[3] - 40), fill=_hex_to_rgba(accent, 120))
+    glow_draw.ellipse((box[0] + 20, box[1] - 90, box[2] - 20, box[1] + 380), fill=_hex_to_rgba(light, 85))
+    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(52))
+    image.alpha_composite(glow_layer)
+
+    _draw_topic_illustration_stage(image, box, accent, light, content_package)
+
+    source_path = _resolve_illustration_path(config, content_package.mbti_type)
+    if source_path is None:
+        raise FileNotFoundError(
+            f"Provided MBTI material is required for {content_package.mbti_type}; "
+            f"place it in {config.official_images_dir} or {config.assets_dir}"
+        )
+
+    with Image.open(source_path) as opened_source:
+        source = opened_source.convert("RGBA")
+        alpha = source.getchannel("A")
+        alpha_min, alpha_max = alpha.getextrema()
+        has_transparency = alpha_min < alpha_max
+
+    topic_variant = _visual_seed(content_package, include_mbti=False) % 8
+    is_thumbnail = scene_index == 0
+    composition_variant = topic_variant if is_thumbnail else (topic_variant + scene_index * 3) % 8
+    frame_width = box[2] - box[0]
+    frame_height = box[3] - box[1]
+
+    if has_transparency:
+        alpha_bbox = source.getchannel("A").getbbox()
+        if alpha_bbox is not None:
+            source = source.crop(alpha_bbox)
+        thumbnail_scales = (0.9, 0.94, 0.92, 0.96, 0.91, 0.95, 0.93, 0.97)
+        content_scales = (0.76, 0.86, 1.0, 0.82, 0.94, 0.78, 0.9, 0.84)
+        scale = thumbnail_scales[composition_variant] if is_thumbnail else content_scales[composition_variant]
+        max_size = (max(int(frame_width * scale), 1), max(int(frame_height * scale), 1))
+        source.thumbnail(max_size, Image.Resampling.LANCZOS)
+        if not is_thumbnail and composition_variant in {0, 2, 4, 7}:
+            source = ImageOps.mirror(source)
+        thumbnail_angles = (-2, 2, 0, 3, -1, 2, -3, 1)
+        content_angles = (-7, 6, -4, 8, -6, 5, -8, 4)
+        angle = thumbnail_angles[composition_variant] if is_thumbnail else content_angles[composition_variant]
+        source = source.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True)
+        shadow = Image.new("RGBA", source.size, (0, 0, 0, 0))
+        shadow_alpha = source.getchannel("A").filter(ImageFilter.GaussianBlur(18))
+        shadow.paste((0, 0, 0, 130), (0, 0), shadow_alpha)
+        thumbnail_x_bias = (-0.04, 0.05, -0.02, 0.04, -0.03, 0.02, 0.04, -0.01)
+        thumbnail_y_bias = (0.02, -0.01, 0.04, 0.0, 0.05, -0.02, 0.03, 0.01)
+        content_x_bias = (-0.16, 0.15, -0.1, 0.13, -0.14, 0.1, 0.16, -0.08)
+        content_y_bias = (0.1, -0.05, 0.12, -0.04, 0.14, -0.08, 0.08, 0.04)
+        x_bias = thumbnail_x_bias[composition_variant] if is_thumbnail else content_x_bias[composition_variant]
+        y_bias = thumbnail_y_bias[composition_variant] if is_thumbnail else content_y_bias[composition_variant]
+        x = box[0] + (frame_width - source.width) // 2 + int(frame_width * x_bias)
+        y = box[1] + (frame_height - source.height) // 2 + int(frame_height * y_bias)
+        image.alpha_composite(shadow, (x + 16, y + 20))
+        image.alpha_composite(source, (x, y))
+    else:
+        centering_x = (0.34, 0.66, 0.5, 0.42, 0.58, 0.28, 0.72, 0.5)[composition_variant]
+        centering_y = (0.5, 0.42, 0.58, 0.36, 0.64, 0.48, 0.54, 0.4)[composition_variant]
+        portrait = ImageOps.fit(
+            source.convert("RGB"),
+            (frame_width - 32, frame_height - 32),
+            method=Image.Resampling.LANCZOS,
+            centering=(centering_x, centering_y),
+        )
+        if not is_thumbnail and composition_variant in {0, 2, 4, 7}:
+            portrait = ImageOps.mirror(portrait)
+        mask = Image.new("L", portrait.size, 0)
+        mask_draw = ImageDraw.Draw(mask)
+        frame_style = (topic_variant + scene_index) % 3
+        if frame_style == 0:
+            mask_draw.rounded_rectangle((0, 0, portrait.width, portrait.height), radius=44, fill=255)
+        elif frame_style == 1:
+            mask_draw.ellipse((0, 0, portrait.width, portrait.height), fill=255)
+        else:
+            mask_draw.polygon(
+                ((portrait.width // 2, 0), (portrait.width, portrait.height // 5), (portrait.width, portrait.height), (0, portrait.height), (0, portrait.height // 5)),
+                fill=255,
+            )
+
+        shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
+        shadow_draw = ImageDraw.Draw(shadow_layer)
+        shadow_draw.rounded_rectangle((box[0] + 14, box[1] + 18, box[2] + 14, box[3] + 18), radius=56, fill=(0, 0, 0, 118))
+        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(24))
+        image.alpha_composite(shadow_layer)
+
+        if frame_style == 0:
+            draw.rounded_rectangle(box, radius=56, fill=(255, 255, 255, 235), outline=light, width=6)
+        elif frame_style == 1:
+            draw.ellipse(box, fill=(255, 255, 255, 235), outline=light, width=6)
+        else:
+            draw.polygon(((box[0] + frame_width // 2, box[1]), (box[2], box[1] + frame_height // 5), (box[2], box[3]), (box[0], box[3]), (box[0], box[1] + frame_height // 5)), fill=(255, 255, 255, 235), outline=light)
+        image.paste(portrait.convert("RGBA"), (box[0] + 16, box[1] + 16), mask)
+
+    if is_thumbnail:
+        badge_font = _load_font(42, bold=True)
+        badge_box = (box[0] + 60, box[3] - 70, box[2] - 50, box[3] + 30)
+        draw.rounded_rectangle(badge_box, radius=36, fill=(255, 255, 255, 230))
+        badge_width = draw.textbbox((0, 0), content_package.mbti_type, font=badge_font)[2]
+        badge_x = badge_box[0] + ((badge_box[2] - badge_box[0]) - badge_width) // 2
+        draw.text((badge_x, badge_box[1] + 22), content_package.mbti_type, font=badge_font, fill=accent)
+    else:
+        marker_radius = 20 + (scene_index % 3) * 6
+        marker_x = box[2] - 16
+        marker_y = box[1] + 54
+        draw.ellipse(
+            (marker_x - marker_radius, marker_y - marker_radius, marker_x + marker_radius, marker_y + marker_radius),
+            fill=_hex_to_rgba(light, 220),
+            outline=_hex_to_rgba(accent, 240),
+            width=5,
+        )
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
+    return destination
+
+
+def _render_accent_overlay(content_package: ContentPackage, config: AppConfig, destination: Path) -> Path:
+    width = config.video_width
+    height = config.video_height
+    _, accent, light = GROUP_PALETTES[content_package.group_name]
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+
+    motif = _motif_key(content_package)
+    if motif == "chat":
+        draw.rounded_rectangle((786, 164, 1018, 252), radius=30, fill=_hex_to_rgba(light, 70))
+        draw.rounded_rectangle((724, 1334, 1020, 1436), radius=34, fill=_hex_to_rgba(accent, 62))
+        draw.ellipse((890, 300, 952, 362), fill=_hex_to_rgba(light, 120))
+    elif motif == "grid":
+        for x in (742, 844, 946):
+            draw.rounded_rectangle((x, 178, x + 70, 248), radius=18, fill=_hex_to_rgba(light, 66))
+        draw.rounded_rectangle((734, 1398, 1008, 1432), radius=14, fill=_hex_to_rgba(accent, 78))
+    elif motif == "pulse":
+        for radius in (54, 94, 134):
+            draw.ellipse((852 - radius, 286 - radius, 852 + radius, 286 + radius), outline=_hex_to_rgba(light, 54), width=4)
+        draw.rounded_rectangle((768, 1382, 800, 1762), radius=16, fill=_hex_to_rgba(accent, 58))
+    elif motif == "orbit":
+        draw.ellipse((742, 132, 1028, 418), outline=_hex_to_rgba(light, 58), width=4)
+        draw.ellipse((806, 196, 964, 354), outline=_hex_to_rgba(accent, 72), width=4)
+        draw.ellipse((822, 1330, 918, 1426), fill=_hex_to_rgba(light, 96))
+    else:
+        draw.rounded_rectangle((760, 180, 790, 980), radius=18, fill=_hex_to_rgba(light, 58))
+        draw.rounded_rectangle((824, 148, 846, 920), radius=12, fill=_hex_to_rgba(accent, 70))
+        draw.ellipse((844, 284, 904, 344), fill=_hex_to_rgba(light, 120))
+        draw.ellipse((882, 330, 918, 366), fill=_hex_to_rgba(accent, 95))
+        draw.ellipse((820, 1210, 874, 1264), fill=_hex_to_rgba(light, 88))
+        draw.polygon([(860, 90), (990, 90), (880, 340), (760, 340)], fill=_hex_to_rgba(accent, 28))
+        draw.polygon([(790, 1420), (980, 1420), (930, 1760), (740, 1760)], fill=_hex_to_rgba(light, 24))
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
+    return destination
+
+
+def _render_scene_accent_overlay(
+    content_package: ContentPackage,
+    scene_index: int,
+    config: AppConfig,
+    destination: Path,
+) -> Path:
+    width = config.video_width
+    height = config.video_height
+    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(image)
+    scene = content_package.scenes[scene_index]
+    style_key = _scene_style_key(content_package, scene, scene_index)
+
+    if style_key == "spotlight":
+        draw.rounded_rectangle((732, 248, 770, 1118), radius=18, fill=_hex_to_rgba(light, 62))
+        draw.rounded_rectangle((790, 210, 816, 980), radius=12, fill=_hex_to_rgba(accent, 92))
+        draw.ellipse((820, 312, 930, 422), fill=_hex_to_rgba(light, 120))
+        draw.polygon([(874, 114), (1018, 114), (888, 384), (744, 384)], fill=_hex_to_rgba(accent, 30))
+        _draw_spark(draw, (900, 1490), 42, _hex_to_rgba(light, 210))
+    elif style_key == "bottom_board":
+        for y in (252, 324, 396):
+            draw.rounded_rectangle((676, y, 1010, y + 26), radius=12, fill=_hex_to_rgba(light, 72))
+        draw.rounded_rectangle((120, 972, 1000, 1004), radius=12, fill=_hex_to_rgba(accent, 86))
+        draw.rounded_rectangle((120, 1760, 952, 1790), radius=12, fill=_hex_to_rgba(light, 58))
+    elif style_key == "chat":
+        draw.rounded_rectangle((82, 580, 180, 610), radius=10, fill=_hex_to_rgba(light, 110))
+        draw.rounded_rectangle((908, 888, 1006, 918), radius=10, fill=_hex_to_rgba(accent, 110))
+        for point in ((840, 690), (906, 756), (968, 818), (272, 1464)):
+            _draw_spark(draw, point, 24, _hex_to_rgba(light, 180))
+    elif style_key == "slam":
+        draw.polygon([(742, 242), (1052, 242), (948, 722), (638, 722)], fill=_hex_to_rgba(accent, 24))
+        for radius in (150, 228, 306):
+            draw.ellipse((760 - radius, 1260 - radius, 760 + radius, 1260 + radius), outline=_hex_to_rgba(light, 32), width=4)
+        draw.rounded_rectangle((84, 1112, 818, 1140), radius=14, fill=_hex_to_rgba(light, 70))
+    else:
+        draw.rounded_rectangle((94, 644, 986, 680), radius=14, fill=_hex_to_rgba(accent, 62))
+        draw.rounded_rectangle((94, 1586, 986, 1616), radius=14, fill=_hex_to_rgba(light, 68))
+        draw.ellipse((858, 362, 978, 482), fill=_hex_to_rgba(light, 98))
+        draw.ellipse((108, 1490, 212, 1594), fill=_hex_to_rgba(accent, 86))
+
+    glow_layer = image.filter(ImageFilter.GaussianBlur(14))
+    image.alpha_composite(glow_layer)
+    _render_accent_overlay(content_package, config, destination)
+    with Image.open(destination) as opened_overlay:
+        base_overlay = opened_overlay.convert("RGBA")
+    base_overlay.alpha_composite(image)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    base_overlay.save(destination)
+    return destination
+
+
+def _compose_layers(layer_paths: list[Path], destination: Path) -> Path:
+    # Filter to only existing paths
+    existing_paths = [p for p in layer_paths if p and p.exists()]
+    if not existing_paths:
+        # Create a blank transparent image if no layers exist
+        background = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
+    else:
+        with Image.open(existing_paths[0]) as opened_background:
+            background = opened_background.convert("RGBA")
+    for layer_path in existing_paths[1:]:
+        try:
+            with Image.open(layer_path) as opened_overlay:
+                overlay = opened_overlay.convert("RGBA")
+            background.alpha_composite(overlay)
+        except Exception:
+            # Skip layers that fail to load
+            continue
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    background.convert("RGB").save(destination)
+    return destination
+
+
+def generate_scene_assets(content_package: ContentPackage, config: AppConfig, slides_dir: Path) -> list[SceneRenderAssets]:
+    if slides_dir.exists():
+        shutil.rmtree(slides_dir)
+    slides_dir.mkdir(parents=True, exist_ok=True)
+    render_dir = slides_dir.parent / "_render"
+    if render_dir.exists():
+        try:
+            shutil.rmtree(render_dir)
+        except (PermissionError, OSError):
+            # Handle Windows file locking issues by using onerror callback
+            import stat
+            def handle_remove_error(func, path, exc_info):
+                import os
+                if not os.access(path, os.W_OK):
+                    os.chmod(path, stat.S_IWUSR | stat.S_IREAD)
+                    func(path)
+                else:
+                    raise
+            try:
+                shutil.rmtree(render_dir, onerror=handle_remove_error)
+            except Exception:
+                pass  # If removal fails completely, continue anyway
+    shared_dir = render_dir / "_shared"
+    shared_dir.mkdir(parents=True, exist_ok=True)
+    (shared_dir / "visual_identity.json").write_text(
+        json.dumps(_visual_identity(content_package), ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    background_path = _render_background_layer(content_package, config, shared_dir / "background.png")
+    shared_accent_path = _render_accent_overlay(content_package, config, shared_dir / "accent.png")
+
+    assets: list[SceneRenderAssets] = []
+    for index, scene in enumerate(content_package.scenes):
+        character_path = _render_character_overlay(
+            content_package,
+            config,
+            render_dir / f"character_{index + 1:02d}.png",
+            scene_index=index,
+        )
+        base_path = _compose_layers(
+            [background_path, shared_accent_path, character_path],
+            render_dir / f"base_{index + 1:02d}.png",
+        )
+        accent_path = _render_scene_accent_overlay(
+            content_package,
+            index,
+            config,
+            render_dir / f"accent_{index + 1:02d}.png",
+        )
+        text_path = _render_text_overlay(content_package, scene, index, config, render_dir / f"text_{index + 1:02d}.png")
+        preview_path = _compose_layers([background_path, accent_path, character_path, text_path], slides_dir / f"slide_{index + 1:02d}.png")
+        assets.append(
+            SceneRenderAssets(
+                background_path=background_path,
+                text_overlay_path=text_path,
+                character_overlay_path=character_path,
+                accent_overlay_path=accent_path,
+            )
+        )
+    return assets

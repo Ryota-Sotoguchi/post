@@ -1,0 +1,103 @@
+{
+  "next_post_index": 201,
+  "topic_history": [
+    {
+      "key": "like_attitude",
+      "name": "が好きな人に見せる態度",
+      "theme": "恋愛",
+      "blueprint": "like_attitude",
+      "source": "seed"
+    },
+    {
+      "key": "crush_actions",
+      "name": "が脈ありの時にする行動",
+      "theme": "恋愛",
+      "blueprint": "crush_actions",
+      "source": "seed"
+    },
+    {
+      "key": "line_shift",
+      "name": "のLINEが急に変わる瞬間",
+      "theme": "恋愛",
+      "blueprint": "line_shift",
+      "source": "seed"
+    },
+    {
+      "key": "trust_sign",
+      "name": "が本気で心を許したサイン",
+      "theme": "人間関係",
+      "blueprint": "trust_sign",
+      "source": "seed"
+    },
+    {
+      "key": "stress_signal",
+      "name": "がしんどい時に出るサイン",
+      "theme": "心理",
+      "blueprint": "stress_signal",
+      "source": "seed"
+    },
+    {
+      "key": "generated_c8199ad6739a",
+      "name": "が本命だけに見せる優先順位の上げ方",
+      "theme": "恋愛",
+      "blueprint": "like_attitude",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_69bf7ded5f72",
+      "name": "が限界前に見せる口数の変化",
+      "theme": "心理",
+      "blueprint": "stress_signal",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_3b09abd16d76",
+      "name": "が脈ありだと増える連絡の増え方",
+      "theme": "恋愛",
+      "blueprint": "crush_actions",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_263ee7bbae92",
+      "name": "が心を許すと変わる弱さの見せ方",
+      "theme": "人間関係",
+      "blueprint": "trust_sign",
+      "source": "procedural"
+    },
+    {
+      "key": "攻略",
+      "name": "の攻略で効く接し方",
+      "theme": "攻略",
+      "blueprint": "攻略",
+      "source": "seed"
+    },
+    {
+      "key": "generated_64c15c0d473c",
+      "name": "のLINEで本音が出る返信の温度",
+      "theme": "恋愛",
+      "blueprint": "line_shift",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_66924151d49b",
+      "name": "に刺さる褒め方",
+      "theme": "攻略",
+      "blueprint": "攻略",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_d5597e3e07c0",
+      "name": "が本命だけに見せる距離の縮め方",
+      "theme": "恋愛",
+      "blueprint": "like_attitude",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_99b2f7ee5631",
+      "name": "が脈ありだと増える予定の聞き方",
+      "theme": "恋愛",
+      "blueprint": "crush_actions",
+      "source": "procedural"
+    }
+  ]
+}
