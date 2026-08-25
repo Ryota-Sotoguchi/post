@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Build assets without advancing series state'
+        description: 'Build assets without advancing series state or sending'
         type: boolean
         default: false
 
@@ -32,6 +32,8 @@ jobs:
       DAILY_POSTS: '3'
       TOPIC_DEPTH: deep
       PHONE_EXPORT_DIR: delivery/phone
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -54,8 +56,15 @@ jobs:
             ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Show what was produced
+        run: find delivery/phone -name 'slide_*' -printf '%p\t%s\n' | sort || true
+
+      # out/ is gitignored, so a fresh checkout holds only what this run made.
+      # Yesterday is covered because the daemon backfills one day of misses.
+      - name: Deliver to Telegram
+        if: ${{ !inputs.dry_run }}
         run: |
-          find delivery/phone -name 'slide_*' -printf '%p\t%s\n' | sort || true
+          python -m mbti_tiktok_bot send-telegram --date "$(date -d yesterday +%F)"
+          python -m mbti_tiktok_bot send-telegram --date "$(date +%F)"
 
       - name: Commit series state
         if: ${{ !inputs.dry_run }}
@@ -70,6 +79,7 @@ jobs:
           git push origin "HEAD:${GITHUB_REF_NAME}"
 
       - name: Upload slides
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: slides-${{ github.run_id }}

@@ -71,6 +71,9 @@ class AppConfig:
     default_hashtags: list[str]
     phone_export_auto: bool
     phone_export_dir: Path
+    telegram_bot_token: str | None
+    telegram_chat_id: str | None
+    telegram_as_document: bool
 
 
 def load_config(project_root: Path | None = None) -> AppConfig:
@@ -98,4 +101,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         default_hashtags=default_hashtags,
         phone_export_auto=_bool_env(settings, "PHONE_EXPORT_AUTO", default=False),
         phone_export_dir=_path_env(settings, resolved_root, "PHONE_EXPORT_DIR", "delivery/phone"),
+        telegram_bot_token=settings.get("TELEGRAM_BOT_TOKEN") or None,
+        telegram_chat_id=settings.get("TELEGRAM_CHAT_ID") or None,
+        # Telegram re-encodes anything sent as a photo. Slides go out as
+        # documents so what lands in the camera roll is the rendered PNG.
+        telegram_as_document=_bool_env(settings, "TELEGRAM_AS_DOCUMENT", default=True),
     )

@@ -9,6 +9,7 @@ from mbti_tiktok_bot.daemon import DEFAULT_DAEMON_TIMES, MAX_BACKLOG_DAYS, Daemo
 from mbti_tiktok_bot.phone_export import export_daily_results_to_phone
 from mbti_tiktok_bot.pipeline import build_daily_bundle, build_daily_bundles, load_daily_results, load_existing_visual_results, refresh_existing_visuals
 from mbti_tiktok_bot.planner import advance_series_state, resolve_target_date
+from mbti_tiktok_bot.telegram import deliver_results
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -37,6 +38,9 @@ def _build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--date", help="Target date in YYYY-MM-DD")
     plan.add_argument("--mbti", help="Override MBTI type")
     plan.add_argument("--format", help="Override post format")
+
+    telegram_cmd = subparsers.add_parser("send-telegram", help="Send a day's finished slides to Telegram")
+    telegram_cmd.add_argument("--date", help="Target date in YYYY-MM-DD")
 
     refresh = subparsers.add_parser("refresh-visuals", help="Re-render illustrations for existing packages")
     refresh.add_argument("--topic", help="Only refresh one existing topic folder")
@@ -271,6 +275,23 @@ def _run_daily(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_send_telegram(args: argparse.Namespace) -> int:
+    config = load_config(Path.cwd())
+    target_date = resolve_target_date(args.date)
+    if not config.telegram_bot_token or not config.telegram_chat_id:
+        print("Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID before sending")
+        return 1
+
+    results = load_daily_results(target_date, config)
+    if not results:
+        print(f"No results to send for {target_date.isoformat()}")
+        return 0
+
+    delivery = deliver_results(config, results)
+    print(f"Telegram delivery: {delivery.sent_posts} posts, {delivery.sent_files} files")
+    return 0
+
+
 def _run_slot(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     target_date = resolve_target_date(args.date)
@@ -320,6 +341,8 @@ def main() -> None:
         raise SystemExit(_run_slot(args))
     if args.command == "run-daemon":
         raise SystemExit(_run_daemon(args))
+    if args.command == "send-telegram":
+        raise SystemExit(_run_send_telegram(args))
     if args.command == "plan":
         raise SystemExit(_run_plan(args))
     if args.command == "refresh-visuals":

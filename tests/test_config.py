@@ -79,6 +79,9 @@ class ConfigTests(unittest.TestCase):
                 "default_hashtags",
                 "phone_export_auto",
                 "phone_export_dir",
+                "telegram_bot_token",
+                "telegram_chat_id",
+                "telegram_as_document",
             },
         )
 

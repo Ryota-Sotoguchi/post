@@ -5,7 +5,7 @@ import re
 from dataclasses import dataclass, field, replace
 from datetime import date
 from difflib import SequenceMatcher
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene
@@ -79,8 +79,26 @@ def _summary_item(base_dir: Path, content_package: ContentPackage) -> dict[str, 
         "daily_slot": content_package.daily_slot,
         "series_post_number": content_package.series_post_number,
         "global_post_index": content_package.global_post_index,
-        "output_dir": str(_bundle_output_dir(base_dir, content_package)),
+        # Relative to the summary file. Absolute paths here used to pin a
+        # summary to the machine that wrote it, so a checkout anywhere else
+        # resolved nothing.
+        "output_dir": _bundle_output_dir(base_dir, content_package).name,
     }
+
+
+def _summary_key(raw_output_dir: str) -> str:
+    return PureWindowsPath(raw_output_dir).name or raw_output_dir
+
+
+def _resolve_summary_output_dir(summary_path: Path, raw_output_dir: str) -> Path | None:
+    """Locate a post folder from a summary entry written on any machine."""
+    candidate = Path(raw_output_dir)
+    if candidate.is_absolute() and candidate.exists():
+        return candidate
+    # Legacy entries hold an absolute Windows path; PureWindowsPath reads the
+    # folder name off those even on Linux, where Path() sees one long segment.
+    sibling = summary_path.parent / _summary_key(raw_output_dir)
+    return sibling if sibling.exists() else None
 
 
 def _merge_summary_items(summary_path: Path, summary_items: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -93,10 +111,10 @@ def _merge_summary_items(summary_path: Path, summary_items: list[dict[str, objec
             output_dir = str(item.get("output_dir") or "")
             if not output_dir:
                 continue
-            merged_items[output_dir] = item
+            merged_items[_summary_key(output_dir)] = item
 
     for item in summary_items:
-        merged_items[str(item["output_dir"])] = item
+        merged_items[_summary_key(str(item["output_dir"]))] = item
 
     return sorted(
         merged_items.values(),
@@ -368,8 +386,8 @@ def load_daily_results(target_date: date, config: AppConfig) -> list[PipelineRes
             if item_date != target_date_str:
                 continue
 
-            output_dir = Path(item["output_dir"])
-            if not output_dir.exists():
+            output_dir = _resolve_summary_output_dir(summary_path, str(item["output_dir"]))
+            if output_dir is None:
                 continue
             slides_dir = output_dir / "slides"
             media_paths = sorted(slides_dir.glob("slide_*.png"))
