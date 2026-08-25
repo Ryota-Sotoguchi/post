@@ -204,6 +204,11 @@ def _fit_text_block(
     return wrapped, font, line_spacing, text_width, text_height
 
 
+def _fitted_card_bottom(content_top: int, content_height: int, maximum: int, padding: int = 72) -> int:
+    """Card bottom that hugs the copy instead of leaving a fixed panel half empty."""
+    return min(content_top + content_height + padding, maximum)
+
+
 def _stack_top(region_top: int, region_bottom: int, item_heights: list[int], gaps: list[int] | None = None) -> int:
     resolved_gaps = gaps or []
     total_height = sum(item_heights) + sum(resolved_gaps)
@@ -975,7 +980,9 @@ def _draw_thumbnail_overlay(
         min_spacing=8,
     )
     title_area_top = max(content_region[1], label_left[3] + 76)
-    card_bottom = min(card[3], max(card[1] + 760, title_area_top + title_height + 174))
+    # The old 760px floor held the cover card open well past the title, leaving
+    # a slab of empty panel under short headlines.
+    card_bottom = min(card[3], max(card[1] + 430, title_area_top + title_height + 174))
     cover_card = (card[0], card[1], card[2], card_bottom)
     _draw_luxury_round_box(image, cover_card, 72, (8, 15, 38, 188), accent, light, 168)
     draw = ImageDraw.Draw(image)
@@ -1003,10 +1010,13 @@ def _draw_thumbnail_overlay(
         _hex_to_rgba(background, 232),
         "white",
     )
+    # The old COVER n/16 badge reported this post's place in the 16-type series,
+    # which means nothing to someone seeing a single carousel. A swipe cue earns
+    # the space instead.
     _draw_label(
         draw,
         label_right,
-        f"COVER {content_package.series_post_number}/{content_package.series_total_posts}",
+        "SWIPE →",
         fonts["scene_tag"],
         _hex_to_rgba(accent, 220),
         "white",
@@ -1071,9 +1081,7 @@ def _draw_scene_style_spotlight(
     fonts: dict[str, ImageFont.ImageFont],
 ) -> None:
     top_shift = _scene_top_shift(content_package, 560)
-    _draw_shadowed_round_box(image, _offset_box((54, 560, 712, 1498), dy=top_shift), 60, (255, 255, 255, 234))
-    _draw_label(draw, _offset_box((94, 604, 408, 692), dy=top_shift), f"0{scene_index + 1} / {scene_total}", fonts["scene_tag"], accent, light)
-    _draw_label(draw, _offset_box((454, 604, 670, 692), dy=top_shift), "POINT", fonts["scene_tag"], _hex_to_rgba(background, 220), "white")
+    card_top = 560 + top_shift
     title, title_font, title_spacing, _, title_height = _fit_text_block(
         draw,
         scene.title,
@@ -1095,7 +1103,11 @@ def _draw_scene_style_spotlight(
         min_size=32,
         min_spacing=10,
     )
-    content_top = _stack_top(760 + top_shift, 1296 + top_shift, [title_height, body_height], [42])
+    content_top = card_top + 200
+    card_bottom = _fitted_card_bottom(content_top, title_height + 42 + body_height, 1498 + top_shift)
+    _draw_shadowed_round_box(image, (54, card_top, 712, card_bottom), 60, (255, 255, 255, 234))
+    _draw_label(draw, _offset_box((94, 604, 408, 692), dy=top_shift), f"{scene_index + 1:02d} / {scene_total}", fonts["scene_tag"], accent, light)
+    _draw_label(draw, _offset_box((454, 604, 670, 692), dy=top_shift), "POINT", fonts["scene_tag"], _hex_to_rgba(background, 220), "white")
     draw.multiline_text((96, content_top), title, font=title_font, fill=background, spacing=title_spacing)
     draw.multiline_text((96, content_top + title_height + 42), body, font=body_font, fill="#171717", spacing=body_spacing)
 
@@ -1112,9 +1124,6 @@ def _draw_scene_style_bottom_board(
     light: str,
     fonts: dict[str, ImageFont.ImageFont],
 ) -> None:
-    _draw_shadowed_round_box(image, (44, 1040, 1036, 1768), 68, (10, 15, 35, 164), 150)
-    draw.rounded_rectangle((78, 1080, 102, 1690), radius=12, fill=_hex_to_rgba(light, 235))
-    _draw_label(draw, (126, 1084, 390, 1170), f"SCENE {scene_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent, 210), "white")
     title, title_font, title_spacing, _, title_height = _fit_text_block(
         draw,
         scene.title,
@@ -1136,10 +1145,14 @@ def _draw_scene_style_bottom_board(
         min_size=30,
         min_spacing=10,
     )
-    content_top = _stack_top(1216, 1670, [title_height, body_height], [48])
+    content_top = 1216
+    card_bottom = _fitted_card_bottom(content_top, title_height + 48 + body_height, 1768)
+    _draw_shadowed_round_box(image, (44, 1040, 1036, card_bottom), 68, (10, 15, 35, 164), 150)
+    draw.rounded_rectangle((78, 1080, 102, card_bottom - 78), radius=12, fill=_hex_to_rgba(light, 235))
+    _draw_label(draw, (126, 1084, 390, 1170), f"SCENE {scene_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent, 210), "white")
     draw.multiline_text((126, content_top), title, font=title_font, fill="white", spacing=title_spacing)
     draw.multiline_text((126, content_top + title_height + 48), body, font=body_font, fill=(245, 245, 245), spacing=body_spacing)
-    counter_text = f"{scene_index + 1}/{scene_total}"
+    counter_text = f"{scene_index + 1:02d} / {scene_total}"
     text_box = draw.textbbox((0, 0), counter_text, font=fonts["count"])
     draw.text((944 - (text_box[2] - text_box[0]), 1108), counter_text, font=fonts["count"], fill=_hex_to_rgba(light, 230))
 
@@ -1186,7 +1199,7 @@ def _draw_scene_style_chat(
     _draw_shadowed_round_box(image, bubble_b, 62, _hex_to_rgba(light, 228), 106)
     draw.polygon([(158, bubble_a[3] - 2), (210, bubble_a[3] + 38), (240, bubble_a[3] - 14)], fill=(255, 255, 255, 240))
     draw.polygon([(760, bubble_b[3] - 12), (816, bubble_b[3] + 24), (846, bubble_b[3] - 30)], fill=_hex_to_rgba(light, 228))
-    _draw_label(draw, _offset_box((102, 634, 320, 714), dy=top_shift), f"0{scene_index + 1}", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, _offset_box((102, 634, 320, 714), dy=top_shift), f"{scene_index + 1:02d}", fonts["scene_tag"], accent, "white")
     title_y = bubble_a[1] + max((bubble_a_height - title_height) // 2, 0) + 8
     body_y = bubble_b[1] + max((bubble_b_height - body_height) // 2, 0) - 6
     draw.multiline_text((104, title_y), title, font=title_font, fill=background, spacing=title_spacing)
@@ -1249,10 +1262,6 @@ def _draw_scene_style_wrapup(
     light: str,
     fonts: dict[str, ImageFont.ImageFont],
 ) -> None:
-    card_box = (86, 676, 998, 1586)
-    _draw_shadowed_round_box(image, card_box, 68, (255, 255, 255, 226), 116)
-    _draw_label(draw, (122, 716, 436, 802), f"0{scene_index + 1} / {scene_total}", fonts["scene_tag"], accent, "white")
-    _draw_label(draw, (690, 716, 958, 802), "CHECK", fonts["scene_tag"], _hex_to_rgba(light, 220), background)
     title, title_font, title_spacing, _, title_height = _fit_text_block(
         draw,
         scene.title,
@@ -1274,7 +1283,11 @@ def _draw_scene_style_wrapup(
         min_size=30,
         min_spacing=10,
     )
-    content_top = _stack_top(870, 1378, [title_height, body_height], [54])
+    content_top = 870
+    card_bottom = _fitted_card_bottom(content_top, title_height + 54 + body_height, 1586)
+    _draw_shadowed_round_box(image, (86, 676, 998, card_bottom), 68, (255, 255, 255, 226), 116)
+    _draw_label(draw, (122, 716, 436, 802), f"{scene_index + 1:02d} / {scene_total}", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, (690, 716, 958, 802), "CHECK", fonts["scene_tag"], _hex_to_rgba(light, 220), background)
     draw.multiline_text((124, content_top), title, font=title_font, fill=background, spacing=title_spacing)
     draw.multiline_text((124, content_top + title_height + 54), body, font=body_font, fill="#181818", spacing=body_spacing)
 
@@ -1711,14 +1724,15 @@ def _render_background_layer(content_package: ContentPackage, config: AppConfig,
             draw.ellipse((680 - radius, 420 - radius, 680 + radius, 420 + radius), outline=_hex_to_rgba(light, 34), width=3)
         draw.ellipse((110, 1360, 450, 1700), fill=_hex_to_rgba(accent, 22))
     else:
-        for offset in range(-height, width, 180):
+        # A light diagonal texture. At 180px spacing, plus a second heavier pass
+        # across the lower half, this read as scratches over the artwork rather
+        # than as a background, so keep it wide and faint.
+        for offset in range(-height, width, 420):
             draw.line(
                 [(offset, 0), (offset + height, height)],
-                fill=(255, 255, 255, 14),
+                fill=(255, 255, 255, 10),
                 width=2,
             )
-        for x in range(0, width, 160):
-            draw.line([(x, 1200), (x + 100, 1560)], fill=_hex_to_rgba(light, 28), width=4)
 
     luxury_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
     luxury_draw = ImageDraw.Draw(luxury_layer)
