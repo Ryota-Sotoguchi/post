@@ -1,5 +1,5 @@
 {
-  "next_post_index": 104,
+  "next_post_index": 172,
   "topic_history": [
     {
       "key": "generated_d5597e3e07c0",
@@ -49,6 +49,97 @@
       "theme": "攻略",
       "blueprint": "攻略",
       "source": "seed"
+    },
+    {
+      "key": "work_trust",
+      "name": "の仕事で信頼される関わり方",
+      "theme": "仕事",
+      "blueprint": "work_trust",
+      "source": "seed"
+    },
+    {
+      "key": "recharge_style",
+      "name": "の回復が早い休み方",
+      "theme": "自己理解",
+      "blueprint": "recharge_style",
+      "source": "seed"
+    },
+    {
+      "key": "communication_style",
+      "name": "と会話が噛み合う話し方",
+      "theme": "コミュニケーション",
+      "blueprint": "communication_style",
+      "source": "seed"
+    },
+    {
+      "key": "generated_b812e5c2bd56",
+      "name": "が本命前で見せる距離を詰めたい時の葛藤",
+      "theme": "恋愛",
+      "blueprint": "like_attitude",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_900535ac535e",
+      "name": "が心を許す前に見せる弱さを預ける境界線",
+      "theme": "人間関係",
+      "blueprint": "trust_sign",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_72744376e37f",
+      "name": "が好意の手前で見せる近づきたいのに避ける瞬間",
+      "theme": "恋愛",
+      "blueprint": "crush_actions",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_005c8f74ee56",
+      "name": "が距離を許す時に出る素を見せる境界線",
+      "theme": "人間関係",
+      "blueprint": "friendship_shift",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_93fa48d98eea",
+      "name": "のLINEに出る踏み込みたい時の文面",
+      "theme": "恋愛",
+      "blueprint": "line_shift",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_0e924d3a9329",
+      "name": "が限界前に見せる防衛反応",
+      "theme": "心理",
+      "blueprint": "stress_signal",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_b387bb4a192a",
+      "name": "に深く刺さる本音を引き出す聞き方",
+      "theme": "攻略",
+      "blueprint": "攻略",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_2331b19ed4dc",
+      "name": "の仕事で信頼が深まる抱え込みのほどき方",
+      "theme": "仕事",
+      "blueprint": "work_trust",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_dacb639f2ee2",
+      "name": "の回復に必要な心理的余白",
+      "theme": "自己理解",
+      "blueprint": "recharge_style",
+      "source": "procedural"
+    },
+    {
+      "key": "generated_f4456d3832f9",
+      "name": "と本音で話すための否定されない聞かれ方",
+      "theme": "コミュニケーション",
+      "blueprint": "communication_style",
+      "source": "procedural"
     }
   ]
 }

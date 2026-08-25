@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from mbti_tiktok_bot.config import load_config
-from mbti_tiktok_bot.daemon import DEFAULT_DAEMON_TIMES, DaemonState, load_daemon_state, normalize_times, run_daemon, save_daemon_state
+from mbti_tiktok_bot.daemon import DEFAULT_DAEMON_TIMES, MAX_BACKLOG_DAYS, DaemonState, load_daemon_state, normalize_times, run_daemon, save_daemon_state
 from mbti_tiktok_bot.phone_export import export_daily_results_to_phone
 from mbti_tiktok_bot.pipeline import build_daily_bundle, build_daily_bundles, load_daily_results, load_existing_visual_results, refresh_existing_visuals
 from mbti_tiktok_bot.planner import advance_series_state, resolve_target_date
@@ -130,6 +130,11 @@ def _reconcile_daemon_outputs(config, scheduled_times: list[str], dry_run: bool)
         if parsed_state_date <= today:
             start_date = parsed_state_date
 
+    # Same cap as pending_slot_runs. This walk fills missing slots for every date
+    # it visits, so stale state here means one run per slot per missed day.
+    earliest_date = today - timedelta(days=max(MAX_BACKLOG_DAYS, 0))
+    start_date = max(start_date, earliest_date)
+
     today_results = load_daily_results(today, config)
     for target_date in _date_range(start_date, today):
         results = load_daily_results(target_date, config)
@@ -146,7 +151,16 @@ def _reconcile_daemon_outputs(config, scheduled_times: list[str], dry_run: bool)
             exit_code = _run_slot_command(config, target_date, False, True)
             if exit_code != 0:
                 return exit_code
+            previous_count = len(results)
             results = load_daily_results(target_date, config)
+            if len(results) <= previous_count:
+                # A slot that reports success without leaving a loadable result
+                # would otherwise spin here forever, generating as it goes.
+                print(
+                    f"Slot run for {target_date} produced no new result; "
+                    f"stopping backfill at {len(results)}/{len(due_slots)}"
+                )
+                return 1
 
         if target_date == today:
             today_results = results

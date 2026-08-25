@@ -9,7 +9,7 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from mbti_tiktok_bot.cli import _run_daily, _run_daemon, _run_slot
+from mbti_tiktok_bot.cli import _reconcile_daemon_outputs, _run_daily, _run_daemon, _run_slot
 from mbti_tiktok_bot.config import load_config
 from mbti_tiktok_bot.daemon import DaemonState, due_slots, normalize_times, pending_slot_runs
 from mbti_tiktok_bot.models import ContentPackage, Scene
@@ -56,6 +56,70 @@ class CliTests(unittest.TestCase):
                 ("2026-08-25", "18:00"),
             ],
         )
+
+    def test_reconcile_daemon_outputs_caps_backlog_after_a_long_outage(self) -> None:
+        # This walk generates any slot a visited date is missing, so a stale
+        # state file must not expand into one run per slot per missed day.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = replace(
+                load_config(Path.cwd()),
+                project_root=root,
+                output_dir=root / "out",
+                state_dir=root / "state",
+                phone_export_dir=root / "delivery" / "phone",
+            )
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+            (config.state_dir / "phone_export_daemon_state.json").write_text(
+                json.dumps({"current_date": "2026-06-01", "completed_slots": []}),
+                encoding="utf-8",
+            )
+
+            produced: dict[str, int] = {}
+
+            def fake_run_slot(_config, target_date, _dry_run, _export_phone) -> int:
+                produced[target_date.isoformat()] = produced.get(target_date.isoformat(), 0) + 1
+                return 0
+
+            def fake_load_daily_results(target_date, _config):
+                return [object()] * produced.get(target_date.isoformat(), 0)
+
+            with patch("mbti_tiktok_bot.cli._run_slot_command", side_effect=fake_run_slot) as run_slot_mock, patch(
+                "mbti_tiktok_bot.cli.load_daily_results", side_effect=fake_load_daily_results
+            ), patch("mbti_tiktok_bot.cli.export_daily_results_to_phone"), patch(
+                "mbti_tiktok_bot.cli.datetime"
+            ) as datetime_mock:
+                datetime_mock.now.return_value = datetime(2026, 8, 25, 19, 0)
+                datetime_mock.strptime = datetime.strptime
+                exit_code = _reconcile_daemon_outputs(config, ["08:00", "12:00", "18:00"], False)
+
+            self.assertEqual(exit_code, 0)
+            # Yesterday and today at three slots each, not 85 days of backlog.
+            self.assertEqual(run_slot_mock.call_count, 6)
+            self.assertEqual(sorted(produced), ["2026-08-24", "2026-08-25"])
+
+    def test_reconcile_daemon_outputs_stops_when_a_slot_makes_no_progress(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = replace(
+                load_config(Path.cwd()),
+                project_root=root,
+                output_dir=root / "out",
+                state_dir=root / "state",
+                phone_export_dir=root / "delivery" / "phone",
+            )
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+
+            with patch("mbti_tiktok_bot.cli._run_slot_command", return_value=0) as run_slot_mock, patch(
+                "mbti_tiktok_bot.cli.load_daily_results", return_value=[]
+            ), patch("mbti_tiktok_bot.cli.datetime") as datetime_mock:
+                datetime_mock.now.return_value = datetime(2026, 8, 25, 19, 0)
+                datetime_mock.strptime = datetime.strptime
+                exit_code = _reconcile_daemon_outputs(config, ["08:00", "12:00", "18:00"], False)
+
+            # Bails out instead of spinning forever on a slot that never lands.
+            self.assertEqual(exit_code, 1)
+            self.assertEqual(run_slot_mock.call_count, 1)
 
     def test_run_daemon_invokes_slot_runner_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
