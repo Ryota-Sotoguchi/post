@@ -2068,12 +2068,11 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
                 pass  # If removal fails completely, continue anyway
     shared_dir = render_dir / "_shared"
     shared_dir.mkdir(parents=True, exist_ok=True)
-    (shared_dir / "visual_identity.json").write_text(
+    (slides_dir.parent / "visual_identity.json").write_text(
         json.dumps(_visual_identity(content_package), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
     background_path = _render_background_layer(content_package, config, shared_dir / "background.png")
-    shared_accent_path = _render_accent_overlay(content_package, config, shared_dir / "accent.png")
 
     assets: list[SceneRenderAssets] = []
     for index, scene in enumerate(content_package.scenes):
@@ -2083,10 +2082,6 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
             render_dir / f"character_{index + 1:02d}.png",
             scene_index=index,
         )
-        base_path = _compose_layers(
-            [background_path, shared_accent_path, character_path],
-            render_dir / f"base_{index + 1:02d}.png",
-        )
         accent_path = _render_scene_accent_overlay(
             content_package,
             index,
@@ -2094,7 +2089,7 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
             render_dir / f"accent_{index + 1:02d}.png",
         )
         text_path = _render_text_overlay(content_package, scene, index, config, render_dir / f"text_{index + 1:02d}.png")
-        preview_path = _compose_layers([background_path, accent_path, character_path, text_path], slides_dir / f"slide_{index + 1:02d}.png")
+        _compose_layers([background_path, accent_path, character_path, text_path], slides_dir / f"slide_{index + 1:02d}.png")
         assets.append(
             SceneRenderAssets(
                 background_path=background_path,
@@ -2103,4 +2098,8 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
                 accent_overlay_path=accent_path,
             )
         )
+
+    if not config.keep_render_layers:
+        shutil.rmtree(render_dir, ignore_errors=True)
+
     return assets

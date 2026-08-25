@@ -82,6 +82,7 @@ class ConfigTests(unittest.TestCase):
                 "telegram_bot_token",
                 "telegram_chat_id",
                 "telegram_as_document",
+                "keep_render_layers",
             },
         )
 

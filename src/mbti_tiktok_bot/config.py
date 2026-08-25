@@ -74,6 +74,7 @@ class AppConfig:
     telegram_bot_token: str | None
     telegram_chat_id: str | None
     telegram_as_document: bool
+    keep_render_layers: bool
 
 
 def load_config(project_root: Path | None = None) -> AppConfig:
@@ -106,4 +107,7 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         # Telegram re-encodes anything sent as a photo. Slides go out as
         # documents so what lands in the camera roll is the rendered PNG.
         telegram_as_document=_bool_env(settings, "TELEGRAM_AS_DOCUMENT", default=True),
+        # Per-layer PNGs are a debugging aid. Keeping them cost more disk
+        # than the finished slides they were built from.
+        keep_render_layers=_bool_env(settings, "MBTI_KEEP_RENDER_LAYERS", default=False),
     )

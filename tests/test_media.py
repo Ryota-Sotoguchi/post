@@ -426,11 +426,16 @@ class MediaTests(unittest.TestCase):
         self.assertGreaterEqual(title_top - label_box[3], 36)
 
     def test_generate_scene_assets_keeps_final_slides_separate_from_layer_outputs(self) -> None:
-        config = replace(load_config(Path.cwd()), video_width=540, video_height=960)
+        config = replace(
+            load_config(Path.cwd()),
+            video_width=540,
+            video_height=960,
+            keep_render_layers=True,
+        )
         package = build_template_package(resolve_target_date("2026-04-22"), config, explicit_mbti="ENFP")
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            slides_dir = Path(temp_dir)
+            slides_dir = Path(temp_dir) / "slides"
             assets = generate_scene_assets(package, config, slides_dir)
 
             self.assertEqual(len(assets), len(package.scenes))
@@ -439,12 +444,26 @@ class MediaTests(unittest.TestCase):
             self.assertTrue(assets[0].character_overlay_path and assets[0].character_overlay_path.exists())
             self.assertTrue(assets[0].accent_overlay_path and assets[0].accent_overlay_path.exists())
             self.assertTrue((slides_dir / "slide_01.png").exists())
-            self.assertFalse((slides_dir / "base_01.png").exists())
             self.assertFalse((slides_dir / "accent_01.png").exists())
             self.assertFalse((slides_dir / "text_01.png").exists())
-            self.assertTrue((slides_dir.parent / "_render" / "base_01.png").exists())
+            self.assertTrue((slides_dir.parent / "_render" / "text_01.png").exists())
+            # The base composite was built and saved for every slide, then never read.
+            self.assertFalse((slides_dir.parent / "_render" / "base_01.png").exists())
             with Image.open(slides_dir / "slide_01.png") as slide:
                 self.assertEqual(slide.mode, "RGB")
+
+    def test_generate_scene_assets_discards_layer_files_by_default(self) -> None:
+        config = replace(load_config(Path.cwd()), video_width=540, video_height=960)
+        package = build_template_package(resolve_target_date("2026-04-22"), config, explicit_mbti="ENFP")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            slides_dir = Path(temp_dir) / "slides"
+            generate_scene_assets(package, config, slides_dir)
+
+            # Layers outweighed the slides they produced, so they go by default.
+            self.assertFalse((slides_dir.parent / "_render").exists())
+            self.assertTrue((slides_dir / "slide_01.png").exists())
+            self.assertTrue((slides_dir.parent / "visual_identity.json").exists())
 
 
 if __name__ == "__main__":
