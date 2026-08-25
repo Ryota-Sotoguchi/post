@@ -1,13 +1,14 @@
 # MBTI Asset Bot
 
-TikTok 用の MBTI コンテンツを画像スライドとしてまとめて作るツールです。1つのネタにつき 16 タイプを順番に回し、重複を避けながら台本、スライド画像、キャプションを出力します。生成は GitHub Actions 上で 1 日 3 回動き、完成したスライドは Telegram に届きます。
+TikTok 用の MBTI コンテンツを画像スライドとしてまとめて作るツールです。1つのネタにつき 16 タイプを順番に回し、重複を避けながら台本、スライド画像、キャプションを出力します。Windows タスクスケジューラが 1 日 3 回 WSL の生成を呼び、完成したスライドは OneDrive の受け渡しフォルダへ書き出されます。投稿はスマホから手動で行います。
 
 ## できること / できないこと
 
 - できること: 1日ぶんの画像スライド素材をまとめて作る
 - できること: フック、各スライド文言、キャプション、ハッシュタグを生成する
 - できること: `images/` や `assets/mbti_images/` の提供済み16タイプ素材を使う
-- できること: 完成したスライドとキャプションを Telegram へ送る
+- できること: 完成したスライドを OneDrive の受け渡しフォルダへ書き出す
+- できること: 完成したスライドとキャプションを Telegram へ送る（任意、既定では使いません）
 - できないこと: 提供素材がないMBTIを自動キャラクターで代用する
 - できないこと: TikTok への自動投稿
 
@@ -37,7 +38,7 @@ sudo apt-get install -y fonts-noto-cjk
 - `DEFAULT_HASHTAGS`: 既定ハッシュタグ。ネタ別のおすすめタグも自動で補います
 - `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID`: 配信先
 - `TELEGRAM_AS_DOCUMENT=true`: スライドを document として送る。Telegram は photo を再エンコードするため、既定で無劣化のこちら
-- `PHONE_EXPORT_DIR=delivery/phone`: 完成スライドの書き出し先
+- `PHONE_EXPORT_DIR`: 完成スライドの書き出し先。OneDrive の受け渡しフォルダを WSL から見たパス（`/mnt/c/Users/.../OneDrive .../`）を指定します
 - `MBTI_KEEP_RENDER_LAYERS=false`: レイヤ別 PNG を残すか。デバッグ用で、既定では完成スライドより嵩むため破棄します
 
 ## 使い方
@@ -82,19 +83,21 @@ MBTI タイプやフォーマットを固定する:
 python -m mbti_tiktok_bot run-daily --mbti ENFP --format が好きな人に見せる態度 --dry-run
 ```
 
-## GitHub Actions
+## 定期実行
 
-[.github/workflows/daily.yml](.github/workflows/daily.yml) が JST 8:00 / 12:00 / 18:00 に動きます。GitHub は負荷時に定時実行を落とすため、各ジョブは「このジョブが1本担当する」と決め打ちせず、未実行スロットをデーモンに問い合わせて埋めます。
+[scripts/register-daily-task.ps1](scripts/register-daily-task.ps1) を PowerShell から一度실行すると、8:00 / 12:00 / 18:00 のタスクが登録されます。
 
-必要な Secrets:
+```powershell
+./scripts/register-daily-task.ps1
+```
 
-- `OPENAI_API_KEY`
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_CHAT_ID`
+タスクは `wsl.exe` 越しに WSL 側の生成を呼びます。WSL 自身の cron は WSL のセッションが上がっている間しか動かないため、再起動やスリープを挟んでも動くこの形にしています。スリープ中の時刻は復帰後に取り返します。
 
-`out/` は `.gitignore` 済みなので、チェックアウト直後のリポジトリにはそのランが作ったものしか入りません。シリーズの進行状態だけが `state/series_state.json` としてコミットし戻されます。
+`--no-reconcile` を付けているのは、run-daemon の既定の突き合わせが `out/` にあるファイル数で進捗を判断するためです。state ファイルが「その日の3枠は済み」と記録していても、`out/` の中身から数え直して同じ枠を作り直してしまいます。
 
-リポジトリは private を前提にしています。`images/` の 16 タイプ素材を公開リポジトリに置かないためです。
+### GitHub Actions（現在は未使用）
+
+[.github/workflows/daily.yml](.github/workflows/daily.yml) に、同じ生成をクラウドで回して Telegram に配信する構成も入っています。PC の電源に依存しない代わりに、OneDrive へは書けません。使う場合は `OPENAI_API_KEY` / `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` の Secrets が必要で、`images/` を含むためリポジトリは private が前提です。
 
 ## 出力
 
