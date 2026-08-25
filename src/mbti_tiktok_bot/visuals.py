@@ -12,6 +12,7 @@ from mbti_tiktok_bot.catalog import GROUP_PALETTES
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.fonts import load_font
 from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene, SceneRenderAssets
+from mbti_tiktok_bot.typeset import wrap_text
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,84 +88,10 @@ def _make_gradient(width: int, height: int, start_hex: str, end_hex: str) -> Ima
 
 
 def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
-    prohibited_line_start = set("、。！？)]）］】」』〉》ぁぃぅぇぉっゃゅょァィゥェォッャュョー〜・,.:;!?")
-    prohibited_line_end = set("([（［【「『〈《")
-    strong_break = set(" 、。！？,.:;!?")
-    soft_break = set("はがをにでとへもやのねよか")
-    awkward_line_start = set("るれたてないますですど")
-
-    def text_width(value: str) -> int:
+    def measure(value: str) -> int:
         return draw.textbbox((0, 0), value, font=font)[2]
 
-    def fitted_break_index(value: str) -> int:
-        fit_index = 1
-        for index in range(1, len(value) + 1):
-            if text_width(value[:index]) > max_width:
-                break
-            fit_index = index
-        if fit_index >= len(value):
-            return len(value)
-
-        search_start = max(1, fit_index - 12)
-        for break_chars in (strong_break, soft_break):
-            for index in range(fit_index, search_start - 1, -1):
-                previous = value[index - 1]
-                following = value[index] if index < len(value) else ""
-                if following in prohibited_line_start or previous in prohibited_line_end:
-                    continue
-                if previous in break_chars:
-                    return index
-
-        while fit_index > 1 and value[fit_index] in prohibited_line_start:
-            fit_index -= 1
-        return fit_index
-
-    def repair_awkward_starts(lines: list[str]) -> list[str]:
-        repaired = list(lines)
-        for index in range(1, len(repaired)):
-            previous = repaired[index - 1]
-            current = repaired[index]
-            if not previous or not current:
-                continue
-            needs_repair = current[0] in awkward_line_start or len(current) <= 2
-            if not needs_repair or len(previous) < 5:
-                continue
-            for move_count in (3, 2, 1):
-                if len(previous) - move_count < 2:
-                    continue
-                candidate_previous = previous[:-move_count].rstrip()
-                candidate_current = previous[-move_count:] + current
-                if (
-                    candidate_previous
-                    and candidate_current[0] not in prohibited_line_start
-                    and text_width(candidate_previous) <= max_width
-                    and text_width(candidate_current) <= max_width
-                ):
-                    repaired[index - 1] = candidate_previous
-                    repaired[index] = candidate_current
-                    break
-        return repaired
-
-    lines: list[str] = []
-    for raw_line in text.splitlines():
-        if not raw_line:
-            lines.append("")
-            continue
-        raw_lines: list[str] = []
-        remaining = raw_line.strip()
-        while remaining:
-            if text_width(remaining) <= max_width:
-                raw_lines.append(remaining)
-                break
-            break_index = fitted_break_index(remaining)
-            head = remaining[:break_index].rstrip()
-            if not head:
-                head = remaining[:1]
-                break_index = 1
-            raw_lines.append(head)
-            remaining = remaining[break_index:].lstrip()
-        lines.extend(repair_awkward_starts(raw_lines))
-    return "\n".join(lines)
+    return wrap_text(measure, text, max_width)
 
 
 def _breaks_protected_japanese_phrase(original: str, wrapped: str) -> bool:
