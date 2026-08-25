@@ -1246,7 +1246,9 @@ def _draw_scene_style_slam(
     )
     body_y, body_card_bottom = _slam_body_layout(body_card_top, body_height)
     _draw_shadowed_round_box(image, (72, body_card_top, 822, body_card_bottom), 60, (255, 255, 255, 232), 110)
-    draw.rounded_rectangle((112, body_card_top + 40, 506, body_card_top + 88), radius=18, fill=_hex_to_rgba(accent, 210))
+    # A short rule above the copy. At 394x48 this read as a label someone
+    # forgot to fill in.
+    draw.rounded_rectangle((112, body_card_top + 52, 232, body_card_top + 62), radius=5, fill=_hex_to_rgba(accent, 210))
     draw.multiline_text((112, body_y), body, font=body_font, fill="#191919", spacing=body_spacing)
 
 
@@ -1468,7 +1470,7 @@ def _draw_pulse_scene_overlay(
 
     body_box = (112, max(title_y + title_height + 48, 1058), 968, 1518)
     draw.rounded_rectangle(body_box, radius=40, fill=(255, 255, 255, 255))
-    draw.rounded_rectangle((144, body_box[1] + 34, 598, body_box[1] + 82), radius=18, fill=_hex_to_rgba(accent))
+    draw.rounded_rectangle((144, body_box[1] + 46, 264, body_box[1] + 56), radius=5, fill=_hex_to_rgba(accent))
     body_y = body_box[1] + 116 + max((body_box[3] - body_box[1] - 156 - body_height) // 2, 0)
     draw.multiline_text((150, body_y), body, font=body_font, fill="#181818", spacing=body_spacing)
 
