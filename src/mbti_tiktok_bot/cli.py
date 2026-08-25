@@ -33,6 +33,11 @@ def _build_parser() -> argparse.ArgumentParser:
     daemon.add_argument("--poll-seconds", type=int, default=30, help="Seconds between schedule checks")
     daemon.add_argument("--dry-run", action="store_true", help="Build assets without writing exports or advancing state")
     daemon.add_argument("--run-once", action="store_true", help="Evaluate due slots once and exit")
+    daemon.add_argument(
+        "--no-reconcile",
+        action="store_true",
+        help="Trust the state file instead of counting existing output (use on a fresh checkout)",
+    )
 
     plan = subparsers.add_parser("plan", help="Generate today's packages")
     plan.add_argument("--date", help="Target date in YYYY-MM-DD")
@@ -303,9 +308,13 @@ def _run_daemon(args: argparse.Namespace) -> int:
     if args.poll_seconds < 1:
         raise ValueError("--poll-seconds must be at least 1")
 
-    reconcile_exit_code = _reconcile_daemon_outputs(config, args.times, args.dry_run)
-    if reconcile_exit_code != 0:
-        return reconcile_exit_code
+    # Reconciliation infers progress from the files in out/. That only holds
+    # where out/ persists between runs; on a fresh checkout it reads as "nothing
+    # done today" every time and regenerates the whole day.
+    if not args.no_reconcile:
+        reconcile_exit_code = _reconcile_daemon_outputs(config, args.times, args.dry_run)
+        if reconcile_exit_code != 0:
+            return reconcile_exit_code
 
     print(f"Starting daemon for times: {', '.join(args.times)}")
     print("Stop with Ctrl+C")

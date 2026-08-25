@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate every due slot
         run: |
-          python -m mbti_tiktok_bot run-daemon --run-once \
+          python -m mbti_tiktok_bot run-daemon --run-once --no-reconcile \
             ${{ inputs.dry_run && '--dry-run' || '' }}
 
       - name: Show what was produced

@@ -121,6 +121,45 @@ class CliTests(unittest.TestCase):
             self.assertEqual(exit_code, 1)
             self.assertEqual(run_slot_mock.call_count, 1)
 
+    def test_run_daemon_skips_reconcile_when_asked(self) -> None:
+        # On a fresh checkout out/ is empty, so counting files there reads as
+        # "nothing done today" and regenerates the whole day on every run.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            config = replace(
+                load_config(Path.cwd()),
+                project_root=root,
+                output_dir=root / "out",
+                state_dir=root / "state",
+                phone_export_dir=root / "delivery" / "phone",
+            )
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+            (config.state_dir / "phone_export_daemon_state.json").write_text(
+                json.dumps({"current_date": "2026-08-25", "completed_slots": ["08:00", "12:00", "18:00"]}),
+                encoding="utf-8",
+            )
+            args = Namespace(
+                times=["08:00", "12:00", "18:00"],
+                poll_seconds=30,
+                dry_run=False,
+                run_once=True,
+                no_reconcile=True,
+            )
+
+            with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
+                "mbti_tiktok_bot.cli._reconcile_daemon_outputs"
+            ) as reconcile_mock, patch("mbti_tiktok_bot.cli._run_slot_command", return_value=0) as run_slot_mock, patch(
+                "mbti_tiktok_bot.daemon.datetime"
+            ) as datetime_mock:
+                datetime_mock.now.return_value = datetime(2026, 8, 25, 19, 0)
+                datetime_mock.strptime = datetime.strptime
+                exit_code = _run_daemon(args)
+
+            self.assertEqual(exit_code, 0)
+            reconcile_mock.assert_not_called()
+            # The state file already records all three slots as done.
+            run_slot_mock.assert_not_called()
+
     def test_run_daemon_invokes_slot_runner_once(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -132,7 +171,7 @@ class CliTests(unittest.TestCase):
                 phone_export_auto=False,
                 phone_export_dir=root / "delivery" / "phone",
             )
-            args = Namespace(times=["08:00"], poll_seconds=30, dry_run=True, run_once=True)
+            args = Namespace(times=["08:00"], poll_seconds=30, dry_run=True, run_once=True, no_reconcile=False)
 
             with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
                 "mbti_tiktok_bot.cli._run_slot_command",
@@ -156,7 +195,7 @@ class CliTests(unittest.TestCase):
                 phone_export_auto=False,
                 phone_export_dir=root / "delivery" / "phone",
             )
-            args = Namespace(times=["08:00", "12:00", "18:00"], poll_seconds=30, dry_run=True, run_once=True)
+            args = Namespace(times=["08:00", "12:00", "18:00"], poll_seconds=30, dry_run=True, run_once=True, no_reconcile=False)
             state_path = config.state_dir / "phone_export_daemon_state.json"
             state_path.parent.mkdir(parents=True, exist_ok=True)
             state_path.write_text(
@@ -193,7 +232,7 @@ class CliTests(unittest.TestCase):
                 phone_export_auto=False,
                 phone_export_dir=root / "delivery" / "phone",
             )
-            args = Namespace(times=["08:00", "12:00", "18:00"], poll_seconds=30, dry_run=False, run_once=True)
+            args = Namespace(times=["08:00", "12:00", "18:00"], poll_seconds=30, dry_run=False, run_once=True, no_reconcile=False)
             target_date = date(2026, 4, 29)
             series_dir = config.output_dir / "が好きな人に見せる態度"
             first_output_dir = series_dir / "post_01_INTJ"
