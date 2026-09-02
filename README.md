@@ -13,8 +13,13 @@ TikTok の Content Posting API は、公開投稿する場合「投稿前に本�
 
 > A fully automated post with no review screen is not permitted.
 
-審査を通していないアプリからの投稿は `SELF_ONLY` 固定かつアカウントを非公開にする必要があるため、無人での公開投稿は選べません。
-そこで **MEDIA_UPLOAD（下書き送信）** を使います。タイトルと説明文は API から入るので、届いた下書きを開いて投稿するだけで済みます。
+この制約は **DIRECT_POST（API から直接公開投稿する場合）** にかかります。審査を通していないアプリの直接投稿は `SELF_ONLY` 固定になります。
+
+そこで **MEDIA_UPLOAD（下書き送信）** を使います。**下書き送信に審査は不要です。**
+API は下書きを置くところまでで、公開するのは TikTok アプリ内での本人の操作なので、審査が求める「本人が確認して投稿する」という条件が構造的に満たされているためです。
+タイトルと説明文は API から入るので、届いた下書きを開いて投稿するだけで済みます。
+
+> App review が必要になるのは `video.publish` / Direct Post を使う場合だけです。本ツールは要求しません。
 
 ## 制約（API 仕様）
 
@@ -59,7 +64,8 @@ TIKTOK_CLIENT_SECRET=...
 ### 4. TikTok アプリを登録
 
 1. [developers.tiktok.com](https://developers.tiktok.com) でアプリを作成
-2. **Content Posting API** をプロダクトに追加し、スコープ `video.upload` を申請
+2. **Login Kit** を追加（Content Posting API の前提）→ **Content Posting API** を追加 → スコープ `video.upload` を追加
+   - **Direct Post は無効のまま**にします。有効にすると `video.publish` が必要になり審査対象になります
 3. **Manage URL properties** で `https://<user>.github.io/post/media/` を URL プレフィックスとして登録
 4. 発行された署名ファイルを `docs/media/` に置いて push し、ポータルで Verify
 
