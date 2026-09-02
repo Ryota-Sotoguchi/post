@@ -198,6 +198,13 @@ def _run_post(args: argparse.Namespace) -> int:
             # can still be mid-deploy, and TikTok rejects a URL it cannot fetch.
             pages.wait_until_live(list(upload.images))
             publish_id = tiktok.send_to_drafts(config, upload.title, upload.description, list(upload.images))
+        except tiktok.DraftBacklogFull:
+            # Every further send would fail the same way; the only cure is for
+            # the account to publish what is already waiting.
+            remaining = len(batch) - index
+            print(f"\nTikTok is refusing new drafts: the inbox already has too many waiting.")
+            print(f"Publish some from the TikTok app, then run this again to send the other {remaining}.")
+            break
         except (tiktok.TikTokError, pages.PagesError) as error:
             failures += 1
             print(f"FAILED {upload.title}: {error}")

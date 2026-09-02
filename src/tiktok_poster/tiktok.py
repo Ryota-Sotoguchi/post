@@ -24,6 +24,14 @@ REQUEST_TIMEOUT = 60
 EXPIRY_MARGIN = timedelta(minutes=10)
 
 
+class DraftBacklogFull(RuntimeError):
+    """TikTok is refusing new drafts until the pending ones are published.
+
+    Drafts cannot be stockpiled: the inbox holds only a handful at a time, and
+    capacity comes back only as the account publishes them.
+    """
+
+
 class TikTokError(RuntimeError):
     pass
 
@@ -102,6 +110,8 @@ def _raise_for_error(payload: dict, response: requests.Response, what: str) -> N
         code, message = "", ""
 
     if str(code).lower() not in {"", "ok"}:
+        if str(code) == "spam_risk_too_many_pending_share":
+            raise DraftBacklogFull(f"{what}: {code}")
         raise TikTokError(f"{what}: {code} - {message}")
     if response.status_code >= 400:
         raise TikTokError(f"{what}: HTTP {response.status_code} - {response.text[:400]}")

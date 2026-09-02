@@ -189,3 +189,28 @@ def test_the_pasted_redirect_is_decoded_however_it_arrives(pasted: str) -> None:
     from tiktok_poster.cli import _extract_code
 
     assert _extract_code(pasted) == "abc*v!5320.s1"
+
+
+def test_a_full_draft_inbox_stops_the_batch(config: Config) -> None:
+    """TikTok caps pending drafts, so the rest of a batch cannot succeed either.
+
+    Sending a long backlog into a full inbox produced one refusal per carousel
+    and hammered the endpoint for nothing.
+    """
+    from tiktok_poster.tiktok import DraftBacklogFull
+
+    _synced(config)
+    _authorize(config)
+
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch(
+        "tiktok_poster.cli.tiktok.send_to_drafts",
+        side_effect=["ok-1", DraftBacklogFull("full"), "never", "never"],
+    ) as send_mock:
+        _run_post(_post_args())
+
+    # Stopped at the refusal rather than trying the remaining two.
+    assert send_mock.call_count == 2
+    records = load_state(config.state_path).records
+    assert len(records) == 1
