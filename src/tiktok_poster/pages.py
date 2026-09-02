@@ -31,15 +31,24 @@ def _git(config: Config, *args: str) -> str:
     return result.stdout.strip()
 
 
-def has_changes(config: Config) -> bool:
-    return bool(_git(config, "status", "--porcelain", "--", str(config.publish_dir)))
+def _targets(config: Config, paths: tuple[Path, ...]) -> list[str]:
+    return [str(path) for path in (paths or (config.publish_dir,))]
 
 
-def push(config: Config, message: str) -> bool:
-    """Commit and push the media tree. Returns False when nothing changed."""
-    if not has_changes(config):
+def has_changes(config: Config, *paths: Path) -> bool:
+    return bool(_git(config, "status", "--porcelain", "--", *_targets(config, paths)))
+
+
+def push(config: Config, message: str, *paths: Path) -> bool:
+    """Commit and push the given paths, or the media tree by default.
+
+    Returns False when nothing changed, which is the normal case for a posting
+    run that only appends to the state file.
+    """
+    targets = _targets(config, paths)
+    if not has_changes(config, *paths):
         return False
-    _git(config, "add", "--", str(config.publish_dir))
+    _git(config, "add", "--", *targets)
     _git(config, "commit", "-m", message)
     branch = _git(config, "rev-parse", "--abbrev-ref", "HEAD")
     _git(config, "push", "origin", f"HEAD:{branch}")

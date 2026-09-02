@@ -1,0 +1,75 @@
+name: Post to TikTok drafts
+
+# Times are UTC; these are 08:00 / 12:00 / 18:00 / 20:00 / 22:00 JST.
+# GitHub can run a scheduled job late under load, which is harmless here:
+# the queue is ordered, so a delayed run just sends the next carousel.
+on:
+  schedule:
+    - cron: "0 23 * * *"
+    - cron: "0 3 * * *"
+    - cron: "0 9 * * *"
+    - cron: "0 11 * * *"
+    - cron: "0 13 * * *"
+  workflow_dispatch:
+    inputs:
+      count:
+        description: How many carousels to send
+        default: "1"
+      dry_run:
+        description: Print what would be sent without calling TikTok
+        type: boolean
+        default: false
+
+# Two runs sharing one refresh token would invalidate each other's, since
+# TikTok rotates it on every exchange.
+concurrency:
+  group: tiktok-post
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      - name: Send the next carousel
+        env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+        run: |
+          python -m tiktok_poster post \
+            --count "${{ inputs.count || 1 }}" \
+            ${{ inputs.dry_run == true && '--dry-run' || '' }} \
+            --no-push
+
+      # Runs even on failure: the token may have been rotated before the send
+      # broke, and the old one is dead the moment a new one is issued.
+      - name: Store the rotated refresh token
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          [ -f state/tokens.json ] || exit 0
+          NEW=$(python -c "import json; print(json.load(open('state/tokens.json'))['refresh_token'])")
+          echo "::add-mask::$NEW"
+          gh secret set TIKTOK_REFRESH_TOKEN --body "$NEW"
+
+      - name: Record what was sent
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add state/posted.json
+          git diff --cached --quiet && exit 0
+          git commit -m "state: sent via Actions"
+          git push

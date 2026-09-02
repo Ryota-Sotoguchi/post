@@ -4,25 +4,73 @@ import argparse
 from pathlib import Path
 
 from tiktok_poster import media, oauth, pages, tiktok
-from tiktok_poster.catalog import Post, scan
+from tiktok_poster.catalog import Upload, load_manifest, manifest_path, scan, write_manifest
 from tiktok_poster.config import Config, load_config
 from tiktok_poster.state import load_state, save_state
 
 
-def _pending(config: Config) -> list[Post]:
+def _manifest(config: Config) -> list[Upload]:
+    return load_manifest(manifest_path(config.publish_dir))
+
+
+def _pending(config: Config) -> list[Upload]:
     posted = load_state(config.state_path).posted_keys
-    return [post for post in scan(config.source_dir) if post.key not in posted]
+    return [upload for upload in _manifest(config) if upload.key not in posted]
+
+
+def _run_sync(args: argparse.Namespace) -> int:
+    """Convert every carousel and record it in the manifest.
+
+    Runs only where the source images are: it is the one step that needs the
+    OneDrive folder, and it leaves behind everything the posting step needs.
+    """
+    config = load_config(Path.cwd())
+    posts = scan(config.source_dir)
+    print(f"Found {len(posts)} carousel(s) across {len({post.theme for post in posts})} theme(s)")
+
+    uploads: list[Upload] = []
+    for index, post in enumerate(posts, start=1):
+        media.publish_post(config, post)
+        uploads.append(
+            Upload(
+                key=post.key,
+                title=post.title,
+                description=post.description,
+                images=tuple(media.public_urls(config, post)),
+            )
+        )
+        if index % 20 == 0 or index == len(posts):
+            print(f"  converted {index}/{len(posts)}")
+
+    path = write_manifest(manifest_path(config.publish_dir), uploads, config.pages_base_url)
+    print(f"Wrote {path}")
+
+    if args.dry_run:
+        print("Dry run. Nothing pushed.")
+        return 0
+
+    try:
+        if pages.push(config, f"media: sync {len(uploads)} carousel(s)"):
+            print("Pushed media and manifest")
+        else:
+            print("Already up to date")
+    except pages.PagesError as error:
+        print(f"Could not push: {error}")
+        return 1
+    return 0
 
 
 def _run_status(_args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
-    all_posts = scan(config.source_dir)
     state = load_state(config.state_path)
-    pending = [post for post in all_posts if post.key not in state.posted_keys]
+    try:
+        uploads = _manifest(config)
+    except FileNotFoundError as error:
+        print(error)
+        return 1
+    pending = [upload for upload in uploads if upload.key not in state.posted_keys]
 
-    print(f"Source        : {config.source_dir}")
-    print(f"Themes        : {len({post.theme for post in all_posts})}")
-    print(f"Carousels     : {len(all_posts)}")
+    print(f"Carousels     : {len(uploads)}")
     print(f"Sent          : {len(state.records)}")
     print(f"Pending       : {len(pending)}")
     if config.posts_per_day:
@@ -32,8 +80,8 @@ def _run_status(_args: argparse.Namespace) -> int:
 
     if pending:
         print("\nNext up:")
-        for post in pending[: config.posts_per_day]:
-            print(f"  {post.title}   {post.description}")
+        for upload in pending[: config.posts_per_day]:
+            print(f"  {upload.title}   {upload.description}")
     for record in state.records[-3:]:
         print(f"\nLast sent: {record.posted_at}  {record.title}  [{record.status}]")
     return 0
@@ -44,7 +92,7 @@ def _run_authorize(args: argparse.Namespace) -> int:
     if args.code:
         tokens = oauth.exchange_code(config, args.code, args.redirect_uri)
         print(f"Authorized. Tokens stored in {tiktok.tokens_path(config)}")
-        print(f"Refresh token valid until roughly {tokens.expires_at} for the access token; refresh token lasts a year.")
+        print(f"Access token expires {tokens.expires_at}; the refresh token lasts a year.")
         return 0
 
     url, state = oauth.authorize_url(config, args.redirect_uri)
@@ -58,62 +106,52 @@ def _run_authorize(args: argparse.Namespace) -> int:
 
 def _run_post(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
-    pending = _pending(config)
+    try:
+        pending = _pending(config)
+    except FileNotFoundError as error:
+        print(error)
+        return 1
     if not pending:
         print("Nothing pending.")
         return 0
 
     batch = pending[: args.count or config.posts_per_day]
-    print(f"Preparing {len(batch)} carousel(s):")
-    for post in batch:
-        print(f"  {post.title}  ({len(post.slides)} slides)")
-
-    for post in batch:
-        media.publish_post(config, post)
-
-    state = load_state(config.state_path)
-    # Keep the batch plus a little history reachable; TikTok pulls the images
-    # asynchronously, so a URL cannot be dropped the moment it is sent.
-    keep = {post.key for post in batch}
-    keep.update(record.key for record in state.records[-config.keep_published_posts :])
-    removed = media.prune(config, keep)
-    if removed:
-        print(f"Pruned {len(removed)} published carousel(s)")
-
-    urls_by_key = {post.key: media.public_urls(config, post) for post in batch}
+    print(f"Sending {len(batch)} carousel(s):")
+    for upload in batch:
+        print(f"  {upload.title}  ({len(upload.images)} slides)")
 
     if args.dry_run:
         print("\nDry run. Would send:")
-        for post in batch:
-            print(f"\n  title      : {post.title}")
-            print(f"  description: {post.description}")
-            for url in urls_by_key[post.key]:
+        for upload in batch:
+            print(f"\n  title      : {upload.title}")
+            print(f"  description: {upload.description}")
+            for url in upload.images:
                 print(f"    {url}")
         return 0
 
-    try:
-        if pages.push(config, f"media: publish {len(batch)} carousel(s)"):
-            print("Pushed media to GitHub Pages")
-        for post in batch:
-            pages.wait_until_live(urls_by_key[post.key])
-    except pages.PagesError as error:
-        # Nothing is recorded, so the next run retries this same batch.
-        print(f"Could not publish the images: {error}")
-        print("TikTok can only pull from a live URL, so no drafts were sent.")
-        return 1
-    print("Pages is serving the images")
-
+    state = load_state(config.state_path)
     failures = 0
-    for post in batch:
+    for upload in batch:
         try:
-            publish_id = tiktok.send_to_drafts(config, post.title, post.description, urls_by_key[post.key])
-        except tiktok.TikTokError as error:
+            # The images were published by `sync`, but a freshly synced batch
+            # can still be mid-deploy, and TikTok rejects a URL it cannot fetch.
+            pages.wait_until_live(list(upload.images))
+            publish_id = tiktok.send_to_drafts(config, upload.title, upload.description, list(upload.images))
+        except (tiktok.TikTokError, pages.PagesError) as error:
             failures += 1
-            print(f"FAILED {post.title}: {error}")
+            print(f"FAILED {upload.title}: {error}")
             continue
-        state.add(post.key, post.title, publish_id)
+        state.add(upload.key, upload.title, publish_id)
         save_state(config.state_path, state)
-        print(f"Sent to drafts: {post.title}  ({publish_id})")
+        print(f"Sent to drafts: {upload.title}  ({publish_id})")
+
+    if not args.no_push:
+        try:
+            if pages.push(config, f"state: sent {len(batch) - failures} carousel(s)", config.state_path):
+                print("Recorded in git")
+        except pages.PagesError as error:
+            # The drafts already landed; a failed push only risks a repeat.
+            print(f"Warning: could not push the state file: {error}")
 
     return 1 if failures else 0
 
@@ -140,15 +178,19 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tiktok-poster", description="Send MBTI carousels to TikTok drafts")
     sub = parser.add_subparsers(dest="command", required=True)
 
+    sync = sub.add_parser("sync", help="Convert every carousel and publish it (needs the source images)")
+    sync.add_argument("--dry-run", action="store_true", help="Convert and write the manifest without pushing")
+
     sub.add_parser("status", help="Show inventory and what is queued next")
 
     authorize = sub.add_parser("authorize", help="Run the one-time OAuth consent")
     authorize.add_argument("--redirect-uri", required=True, help="Must match the app's registered redirect URI")
     authorize.add_argument("--code", help="Authorization code pasted back from the redirect")
 
-    post = sub.add_parser("post", help="Publish the next carousels and send them to drafts")
+    post = sub.add_parser("post", help="Send the next carousels to drafts")
     post.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")
-    post.add_argument("--dry-run", action="store_true", help="Convert and print, without pushing or calling TikTok")
+    post.add_argument("--dry-run", action="store_true", help="Print what would be sent, without calling TikTok")
+    post.add_argument("--no-push", action="store_true", help="Do not commit the state file")
 
     check = sub.add_parser("check", help="Poll TikTok for the status of sent carousels")
     check.add_argument("--limit", type=int, default=10)
@@ -159,6 +201,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = _build_parser().parse_args()
     handlers = {
+        "sync": _run_sync,
         "status": _run_status,
         "authorize": _run_authorize,
         "post": _run_post,

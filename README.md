@@ -82,36 +82,75 @@ TIKTOK_CLIENT_SECRET=...
 トークンは `state/tokens.json` に保存されます（gitignore 済み・600）。
 リフレッシュトークンは使うたびに更新されるため、自動で書き戻します。
 
-### 6. 定期実行
+### 6. 画像を一括で公開する
 
-```powershell
-./scripts/register-task.ps1
+```bash
+.venv/bin/python -m tiktok_poster sync
 ```
 
-8:00 / 12:00 / 18:00 / 20:00 / 22:00 に1本ずつ送ります。スリープしていた時刻は復帰後に取り返します。
+全カルーセルを JPEG に変換して `docs/media/` に配置し、`manifest.json`（タイトル・ハッシュタグ・画像URLの一覧）を書き出して push します。
+**このコマンドだけが OneDrive を必要とします。** 新しい画像を追加したら再実行してください。
+
+### 7. GitHub Actions を設定する
+
+リポジトリの Settings → Secrets and variables → Actions で4つ登録します。
+
+| Secret | 中身 |
+|---|---|
+| `TIKTOK_CLIENT_KEY` | 開発者ポータルの client key |
+| `TIKTOK_CLIENT_SECRET` | 同 client secret |
+| `TIKTOK_REFRESH_TOKEN` | `state/tokens.json` の `refresh_token` |
+| `GH_PAT` | Secrets を書き換える PAT（下記） |
+
+`GH_PAT` は **Fine-grained personal access token** を作り、このリポジトリに対して
+**Secrets: Read and write** と **Contents: Read and write** を許可します。
+リフレッシュトークンは使うたびに新しくなるため、Actions が自分で Secret を更新できないと翌日から動かなくなります。
+
+以降 8:00 / 12:00 / 18:00 / 20:00 / 22:00 (JST) に1本ずつ自動送信されます。PC は不要です。
+
+> Actions タブから手動実行もできます（送信本数の指定と dry-run が可能）。
 
 ## 使い方
 
 ```bash
-python -m tiktok_poster status              # 在庫と次に送る5本
-python -m tiktok_poster post --dry-run      # 変換して送信内容を表示（API は叩かない）
-python -m tiktok_poster post                # 5本送信
-python -m tiktok_poster post --count 1      # 1本だけ
+python -m tiktok_poster sync                # 画像を変換して全部公開（要 OneDrive）
+python -m tiktok_poster status              # 在庫と次に送る分
+python -m tiktok_poster post --dry-run      # 送信内容を表示（API は叩かない）
+python -m tiktok_poster post --count 1      # 1本送信
 python -m tiktok_poster check               # 送信済みの取り込み状況を確認
 ```
 
 ## 動作
 
+`sync`（ローカル）と `post`（どこでも）に分かれています。CI は OneDrive を読めないため、
+必要な情報はすべて `manifest.json` に書き出しておく設計です。
+
+**sync**
+
 1. `SOURCE_DIR/<テーマ>/post_NN_TYPE/slide_NN.png` を走査して投稿順に並べる
-2. 送信済み（`state/posted.json`）を除いた先頭から必要数を取る
-3. PNG を JPEG へ変換して `docs/media/<テーマのハッシュ>/post_NN_TYPE/NN.jpg` に配置
+2. PNG を JPEG へ変換して `docs/media/<テーマのハッシュ>/post_NN_TYPE/NN.jpg` に配置
    - テーマ名は日本語なので、URL には SHA-1 の先頭10桁を使います
-4. 古い公開分を削除して commit & push
-5. Pages が実際に 200 を返すまで待ってから API を呼ぶ（404 を掴ませないため）
-6. 下書きへ送信し、`publish_id` を記録
+3. `docs/media/manifest.json` にタイトル・ハッシュタグ・画像URLを書き出して push
+
+**post**
+
+1. `manifest.json` から、送信済み（`state/posted.json`）を除いた先頭を取る
+2. Pages が実際に 200 を返すことを確認してから API を呼ぶ（404 を掴ませないため）
+3. 下書きへ送信し、`publish_id` を `state/posted.json` に記録して push
 
 ## テスト
 
 ```bash
 .venv/bin/python -m pytest -q
 ```
+
+## PC 上で動かす場合（代替）
+
+GitHub Actions を使わず Windows のタスクスケジューラで回すこともできます。
+
+```powershell
+./scripts/register-task.ps1
+```
+
+同じ5つの時刻に実行しますが、**PC が起動している必要があります**。
+消えていた時間帯の分は次に起動したときにまとめて送られます。

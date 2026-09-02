@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 POST_DIR_RE = re.compile(r"^post_(\d+)_([A-Z]{4})$")
@@ -85,3 +87,67 @@ def scan(source_dir: Path) -> list[Post]:
             )
     posts.sort(key=lambda post: (post.theme, post.order))
     return posts
+
+
+MANIFEST_NAME = "manifest.json"
+
+
+@dataclass(frozen=True, slots=True)
+class Upload:
+    """One carousel, resolved to the URLs TikTok will pull.
+
+    The source images live on a personal OneDrive that CI cannot reach, so the
+    posting step works from this instead of from `scan`: everything it needs is
+    the title, the hashtags and URLs that are already published.
+    """
+
+    key: str
+    title: str
+    description: str
+    images: tuple[str, ...]
+
+
+def manifest_path(publish_dir: Path) -> Path:
+    return publish_dir / MANIFEST_NAME
+
+
+def write_manifest(path: Path, uploads: list[Upload], base_url: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "base_url": base_url,
+                "posts": [
+                    {
+                        "key": upload.key,
+                        "title": upload.title,
+                        "description": upload.description,
+                        "images": list(upload.images),
+                    }
+                    for upload in uploads
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def load_manifest(path: Path) -> list[Upload]:
+    if not path.exists():
+        raise FileNotFoundError(
+            f"No manifest at {path}. Run `tiktok-poster sync` on the machine that has the source images."
+        )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return [
+        Upload(
+            key=str(entry["key"]),
+            title=str(entry["title"]),
+            description=str(entry["description"]),
+            images=tuple(str(url) for url in entry["images"]),
+        )
+        for entry in payload.get("posts", [])
+    ]

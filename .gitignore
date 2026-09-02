@@ -5,6 +5,5 @@ __pycache__/
 .pytest_cache/
 .env
 logs/
-state/*.json
-!state/.gitkeep
+state/tokens.json
 .env.example
