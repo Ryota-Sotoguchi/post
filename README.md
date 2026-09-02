@@ -174,38 +174,64 @@ GitHub Actions を使わず Windows のタスクスケジューラで回すこ�
 同じ5つの時刻に実行しますが、**PC が起動している必要があります**。
 消えていた時間帯の分は次に起動したときにまとめて送られます。
 
-## 手動で送るとき
+## 毎日の運用
 
-新しい画像を置いたあと、または送り残しを送りたいときの手順です。
+**1日1回、これだけ実行します。**
 
 ```bash
-cd ~/work/tiktok
-
-# 1. 状況を見る（在庫・未送信・トークンが使えるか）
-.venv/bin/python -m tiktok_poster status
-
-# 2. OneDrive に増えた画像を取り込む（増えていなければ数秒で終わる）
-.venv/bin/python -m tiktok_poster sync
-
-# 3. 未送信を送る
-.venv/bin/python -m tiktok_poster daily --count 200   # トークンが切れている場合
-.venv/bin/python -m tiktok_poster post  --count 200   # まだ使える場合（status で確認）
+cd ~/work/tiktok && .venv/bin/python -m tiktok_poster daily --sync-secret --no-post
 ```
 
-### 溜め込みはできません
+ブラウザで承認し、戻ってきたアドレスを貼り付けるだけです。
+取得したアクセストークンが GitHub Actions に渡され、**その日の10回の送信が自動で走ります**。
 
-TikTok は未公開の下書きが一定数を超えると新規受付を拒否します（`spam_risk_too_many_pending_share`）。
-実測では **6本前後が上限**でした。在庫を一気に下書きへ送ることはできず、
-**アプリ側で公開して受信箱を空けた分だけ**新しく送れます。
+あとは届いた下書きを TikTok アプリで公開してください。
 
-この制限に当たると送信は自動で打ち切られます（残りを無駄に叩きません）。
-公開してから再実行すれば続きが送られます。
+### なぜ1日1回の承認が要るのか
 
-`--count` は上限であって必須本数ではありません。未送信がそれ以下ならある分だけ送ります。
-送信済みは `state/posted.json` に記録され、**同じカルーセルが二度送られることはありません**。
-`--count 5` にすればその日の分だけ送れます。
+サンドボックスのアプリは `grant_type=refresh_token` が `invalid_grant` で拒否されます。
+アクセストークンは24時間で切れ、Actions 側では更新できないため、1日1回だけ人の承認が必要です。
+審査を通して本番アプリになればこの制約はなくなります。
 
-送信に失敗したものは記録されないので、次に実行したときに自動で再試行されます。
+### 下書きは6本まで
+
+未公開の下書きが**6本**溜まると `spam_risk_too_many_pending_share` で拒否されます（実測値）。
+24時間あたりではなく**同時保持数**の制限なので、公開すればすぐ枠が戻ります。
+
+そのためスロットを1日10回に分散し、満杯のときは送らずに次のスロットへ回します。
+公開のペースに追従して自然に流れる設計です。
+
+## 新しい画像を追加したとき
+
+画像は OneDrive にあり Actions からは見えないので、取り込みだけは PC で実行します。
+
+```powershell
+./scripts/register-sync-task.ps1     # 毎朝7時に自動取り込み
+```
+
+手動なら:
+
+```bash
+.venv/bin/python -m tiktok_poster sync
+```
+
+変換済みのものは飛ばされ、増えていなければ何もコミットしません。
+取り込みが数日遅れても、在庫がある限り投稿は止まりません。
+
+## コマンド一覧
+
+```bash
+python -m tiktok_poster daily --sync-secret --no-post   # 毎日の承認（通常はこれだけ）
+python -m tiktok_poster status                          # 在庫・未送信・トークンの有効期限
+python -m tiktok_poster sync                            # 新しい画像を取り込む（要 OneDrive）
+python -m tiktok_poster post --count 1                  # 手動で1本送る
+python -m tiktok_poster check                           # 送信済みの取り込み状況
+```
+
+## 投稿順
+
+`SOURCE_DIR/<テーマ>/post_NN_TYPE/` の **NN の昇順**で送ります。
+1テーマを16本使い切ってから次のテーマの `post_01` に移ります。
 
 ## サンドボックスで確認できたこと（2026-09-02）
 
