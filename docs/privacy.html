@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy Policy — MBTI Carousel Scheduler</title>
+<link rel="stylesheet" href="style.css">
+
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: September 2, 2026</p>
+
+<p>
+  MBTI Carousel Scheduler ("the Tool") is a personal command-line utility that sends image
+  carousels to its operator's own TikTok drafts. This policy explains what data it handles.
+  The Tool has no server, no database, and no user accounts.
+</p>
+
+<h2>1. Data we collect</h2>
+<ul>
+  <li><strong>TikTok access and refresh tokens.</strong> Received from TikTok when the
+    operator authorizes the Tool, and needed to call the Content Posting API.</li>
+  <li><strong>Image files.</strong> Read from a folder on the operator's own computer.</li>
+  <li><strong>A local record of what has been sent</strong> — a title, a TikTok publish id,
+    and a timestamp — so the same carousel is not sent twice.</li>
+</ul>
+<p>
+  The Tool does not collect names, email addresses, contact lists, location, analytics,
+  device identifiers, or any information about anyone other than the operator.
+</p>
+
+<h2>2. How the data is used</h2>
+<p>
+  Solely to place the operator's own images into the operator's own TikTok drafts. The data
+  is not used for advertising, profiling, or any automated decision-making.
+</p>
+
+<h2>3. Where the data is stored</h2>
+<ul>
+  <li>Tokens are stored in a file on the operator's own computer, readable only by the
+    operator's user account. They are never transmitted anywhere except to TikTok.</li>
+  <li>Images are published to a public GitHub Pages site so that TikTok's servers can fetch
+    them, which is the only transfer method the Content Posting API supports. They are
+    removed once they are no longer needed for a pending upload.</li>
+</ul>
+
+<h2>4. Sharing</h2>
+<p>
+  No data is sold, rented, or shared with any third party. The only external service the
+  Tool sends data to is TikTok, and only to perform the upload the operator requested.
+</p>
+
+<h2>5. Retention and deletion</h2>
+<p>
+  Tokens remain until the operator deletes them or revokes access. Deleting the token file,
+  or disconnecting the app under TikTok Settings → Security &amp; permissions → Manage app
+  permissions, immediately and permanently ends the Tool's access. The local record and the
+  published images can be deleted at any time by removing the files.
+</p>
+
+<h2>6. Children</h2>
+<p>
+  The Tool is not directed at children and is not intended for use by anyone under the
+  minimum age required by TikTok in their region.
+</p>
+
+<h2>7. Changes</h2>
+<p>
+  This policy may be updated. The current version is always the one published at this URL.
+</p>
+
+<h2>8. Contact</h2>
+<p>
+  Questions can be raised at
+  <a href="https://github.com/Ryota-Sotoguchi/post/issues" target="_blank" rel="noopener">github.com/Ryota-Sotoguchi/post/issues</a>.
+</p>
+
+<footer>
+  <a href="./">Home</a> · <a href="terms.html">Terms of Service</a>
+</footer>
+</html>
