@@ -82,12 +82,14 @@ def save_tokens(config: Config, tokens: Tokens) -> Path:
     return path
 
 
-def _check(response: requests.Response, what: str) -> dict:
+def _payload(response: requests.Response, what: str) -> dict:
     try:
-        payload = response.json()
+        return response.json()
     except ValueError as exc:
         raise TikTokError(f"{what}: non-JSON response ({response.status_code})") from exc
 
+
+def _raise_for_error(payload: dict, response: requests.Response, what: str) -> None:
     # The two endpoints disagree on the shape of an error: /post/publish/
     # nests {"code", "message"}, while the OAuth endpoints follow RFC 6749 and
     # return a bare string with error_description beside it.
@@ -103,6 +105,11 @@ def _check(response: requests.Response, what: str) -> dict:
         raise TikTokError(f"{what}: {code} - {message}")
     if response.status_code >= 400:
         raise TikTokError(f"{what}: HTTP {response.status_code} - {response.text[:400]}")
+
+
+def _check(response: requests.Response, what: str) -> dict:
+    payload = _payload(response, what)
+    _raise_for_error(payload, response, what)
     return payload
 
 
@@ -131,10 +138,26 @@ def refresh_tokens(config: Config) -> Tokens:
         },
         timeout=REQUEST_TIMEOUT,
     )
-    payload = _check(response, "token refresh")
+    payload = _payload(response, "token refresh")
+
+    # TikTok invalidates the old refresh token the instant it issues a new one,
+    # so the new one is written before anything else is validated. Failing
+    # between the rotation and the save strands the account and costs a manual
+    # re-authorization, which is exactly how the first CI run broke.
+    rotated = payload.get("refresh_token")
+    if rotated:
+        save_tokens(
+            config,
+            Tokens(
+                access_token=str(payload.get("access_token", "")),
+                refresh_token=str(rotated),
+                expires_at="",
+            ),
+        )
+    _raise_for_error(payload, response, "token refresh")
 
     access_token = payload.get("access_token")
-    new_refresh = payload.get("refresh_token") or refresh_token
+    new_refresh = rotated or refresh_token
     if not access_token:
         raise TikTokError(f"token refresh returned no access_token: {payload}")
 

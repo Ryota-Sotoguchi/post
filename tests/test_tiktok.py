@@ -140,3 +140,25 @@ def test_an_oauth_style_error_is_reported_not_crashed(config):
 
     assert "invalid_grant" in str(excinfo.value)
     assert "invalid or expired" in str(excinfo.value)
+
+
+def test_a_rotated_token_survives_a_broken_response(config):
+    """The new refresh token is saved before the response is validated.
+
+    TikTok kills the old token the moment it issues a new one, so a rotation
+    followed by an error must not lose the replacement — that strands the
+    account until someone re-runs the browser consent by hand.
+    """
+    from unittest.mock import patch
+
+    from tiktok_poster.tiktok import TikTokError, load_tokens, refresh_tokens
+
+    response = FakeResponse(
+        {"refresh_token": "rotated-token", "error": "internal_error", "error_description": "boom"},
+        status_code=500,
+    )
+    with patch("tiktok_poster.tiktok.requests.post", return_value=response):
+        with pytest.raises(TikTokError):
+            refresh_tokens(config)
+
+    assert load_tokens(config).refresh_token == "rotated-token"
