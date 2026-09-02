@@ -1,0 +1,28 @@
+App name:
+MBTI Carousel Scheduler
+
+Description (106/120):
+Schedules my own MBTI-themed image carousels into my TikTok drafts, which I then review and post manually.
+
+Terms of Service URL:
+https://ryota-sotoguchi.github.io/post/terms.html
+
+Privacy Policy URL:
+https://ryota-sotoguchi.github.io/post/privacy.html
+
+Platforms: Web
+
+Website URL:
+https://ryota-sotoguchi.github.io/post/
+
+Login Kit Redirect URI:
+https://ryota-sotoguchi.github.io/post/
+
+Usage description (956/1000):
+This app is a personal command-line tool that I use only for my own TikTok account. It is not offered to any other user.
+
+Login Kit (user.info.basic): I use Login Kit once to authorize the tool against my own TikTok account and obtain an access token. user.info.basic is the default scope required to complete the OAuth flow. I do not store any profile data.
+
+Content Posting API (video.upload): I create MBTI-themed image carousels (7 images each) on my own computer. The tool converts them to JPEG, publishes them to my verified GitHub Pages URL prefix, and calls /v2/post/publish/content/init/ with media_type=PHOTO and post_mode=MEDIA_UPLOAD to place them in my TikTok drafts with a title and hashtags. Direct Post is disabled and video.publish is not requested.
+
+Nothing is ever published automatically. Every draft is opened and posted by me inside the TikTok app, so I review each post before it goes live. This is the first submission for this app.
