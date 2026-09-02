@@ -10,9 +10,12 @@ from tiktok_poster.config import Config
 from tiktok_poster.tiktok import REQUEST_TIMEOUT, TOKEN_URL, TikTokError, Tokens, _check, save_tokens
 
 AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/"
-# video.upload covers MEDIA_UPLOAD (drafts). Asking for video.publish as well
-# would be an unused scope, which is grounds for rejection at audit.
-SCOPE = "video.upload"
+# video.upload covers MEDIA_UPLOAD (drafts). video.publish stays out: it is
+# only needed for Direct Post, and an unused scope is grounds for rejection at
+# audit. user.info.basic is here so the tool can name the account it is posting
+# into — without it a carousel that lands in the wrong account is invisible,
+# which is exactly how six of them went missing.
+SCOPE = "user.info.basic,video.upload"
 
 
 def authorize_url(config: Config, redirect_uri: str) -> tuple[str, str]:
