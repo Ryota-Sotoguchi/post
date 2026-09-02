@@ -3,13 +3,14 @@ from __future__ import annotations
 import argparse
 import subprocess
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
 from tiktok_poster import media, oauth, pages, tiktok
 from tiktok_poster.catalog import Upload, load_manifest, manifest_path, scan, write_manifest
 from tiktok_poster.config import Config, load_config
-from tiktok_poster.state import load_state, save_state
+from tiktok_poster.state import State, load_state, save_state
 
 
 def _manifest(config: Config) -> list[Upload]:
@@ -167,7 +168,7 @@ def _run_daily(args: argparse.Namespace) -> int:
     if args.no_post:
         return 0
     print()
-    return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push, delay=10.0))
+    return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push, delay=10.0, daily_limit=args.daily_limit))
 
 
 def _push_access_token(config: Config) -> int:
@@ -200,6 +201,26 @@ def _push_access_token(config: Config) -> int:
     return 0
 
 
+# Posting is paced against the creator's day, not UTC's. Japan has no DST, so
+# a fixed offset is exact and avoids depending on a tz database being present.
+JST = timezone(timedelta(hours=9))
+
+
+def _sent_today(state: State) -> int:
+    today = datetime.now(JST).date()
+    count = 0
+    for record in state.records:
+        try:
+            stamp = datetime.fromisoformat(record.posted_at)
+        except ValueError:
+            continue
+        if stamp.tzinfo is None:
+            stamp = stamp.replace(tzinfo=timezone.utc)
+        if stamp.astimezone(JST).date() == today:
+            count += 1
+    return count
+
+
 def _run_post(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     try:
@@ -210,8 +231,22 @@ def _run_post(args: argparse.Namespace) -> int:
     if not pending:
         print("Nothing pending.")
         return 0
+    state = load_state(config.state_path)
 
-    batch = pending[: args.count or config.posts_per_day]
+    wanted = args.count or config.posts_per_day
+    # Slots fire every half hour so a carousel blocked by a full inbox is
+    # retried soon rather than at the next of a handful of daily slots. The
+    # day's quota is what keeps that frequency from turning into a flood.
+    limit = config.posts_per_day if args.daily_limit is None else args.daily_limit
+    if limit:
+        already = _sent_today(state)
+        room = limit - already
+        if room <= 0:
+            print(f"Already sent {already} today, which is the limit of {limit}.")
+            return 0
+        wanted = min(wanted, room)
+
+    batch = pending[:wanted]
     print(f"Sending {len(batch)} carousel(s):")
     for upload in batch:
         print(f"  {upload.title}  ({len(upload.images)} slides)")
@@ -225,7 +260,6 @@ def _run_post(args: argparse.Namespace) -> int:
                 print(f"    {url}")
         return 0
 
-    state = load_state(config.state_path)
     failures = 0
     for index, upload in enumerate(batch):
         # TikTok throttles the posting endpoint per user, and a long backlog
@@ -304,6 +338,12 @@ def _build_parser() -> argparse.ArgumentParser:
     post.add_argument("--dry-run", action="store_true", help="Print what would be sent, without calling TikTok")
     post.add_argument("--no-push", action="store_true", help="Do not commit the state file")
     post.add_argument("--delay", type=float, default=10.0, help="Seconds to wait between sends (default 10)")
+    post.add_argument(
+        "--daily-limit",
+        type=int,
+        default=None,
+        help="Most to send in one JST day (default POSTS_PER_DAY; 0 for no limit)",
+    )
 
     daily = sub.add_parser("daily", help="Re-authorize and send the day's batch in one go")
     daily.add_argument(
@@ -319,6 +359,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Give the fresh access token to GitHub Actions so the day's scheduled runs can post",
     )
     daily.add_argument("--no-post", action="store_true", help="Only authorize; send nothing now")
+    daily.add_argument("--daily-limit", type=int, default=None, help="Most to send in one JST day")
 
     check = sub.add_parser("check", help="Poll TikTok for the status of sent carousels")
     check.add_argument("--limit", type=int, default=10)

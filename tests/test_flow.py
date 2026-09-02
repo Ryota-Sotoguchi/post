@@ -24,8 +24,8 @@ def _sync_args(dry_run: bool = True) -> argparse.Namespace:
     return argparse.Namespace(dry_run=dry_run)
 
 
-def _post_args(count=None, dry_run=False, no_push=True) -> argparse.Namespace:
-    return argparse.Namespace(count=count, dry_run=dry_run, no_push=no_push, delay=0)
+def _post_args(count=None, dry_run=False, no_push=True, daily_limit=0) -> argparse.Namespace:
+    return argparse.Namespace(count=count, dry_run=dry_run, no_push=no_push, delay=0, daily_limit=daily_limit)
 
 
 def _authorize(config: Config) -> None:
@@ -214,3 +214,48 @@ def test_a_full_draft_inbox_stops_the_batch(config: Config) -> None:
     assert send_mock.call_count == 2
     records = load_state(config.state_path).records
     assert len(records) == 1
+
+
+def test_the_days_quota_survives_frequent_slots(config: Config) -> None:
+    """Slots fire every half hour; the quota is what stops that flooding.
+
+    Without it, a run every 30 minutes would send far more than the day's
+    target as soon as the account published enough to free up room.
+    """
+    _synced(config)
+    _authorize(config)
+
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", side_effect=["a", "b"]) as send_mock:
+        assert _run_post(_post_args(count=5, daily_limit=2)) == 0
+    assert send_mock.call_count == 2
+
+    # A later slot the same day finds the quota already spent.
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts") as send_mock:
+        assert _run_post(_post_args(count=5, daily_limit=2)) == 0
+    send_mock.assert_not_called()
+
+
+def test_a_blocked_carousel_stays_at_the_head_of_the_queue(config: Config) -> None:
+    """A full inbox must delay a carousel, never pass over it."""
+    from tiktok_poster.tiktok import DraftBacklogFull
+
+    _synced(config)
+    _authorize(config)
+    first = load_manifest(manifest_path(config.publish_dir))[0]
+
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", side_effect=DraftBacklogFull("full")):
+        assert _run_post(_post_args(count=1)) == 0
+    assert load_state(config.state_path).records == []
+
+    # The next slot offers the very same carousel, not the one after it.
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", return_value="ok") as send_mock:
+        assert _run_post(_post_args(count=1)) == 0
+    assert send_mock.call_args.args[1] == first.title
