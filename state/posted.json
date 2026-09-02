@@ -41,6 +41,48 @@
       "publish_id": "p_inbox_url~v2.7680803027062556693",
       "posted_at": "2026-09-02T05:23:17+00:00",
       "status": "SEND_TO_USER_INBOX"
+    },
+    {
+      "key": "6f4922ca38/post_07_ENFJ",
+      "title": "ENFJがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680834353525835796",
+      "posted_at": "2026-09-02T07:27:25+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "6f4922ca38/post_08_ENFP",
+      "title": "ENFPがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680835752674002964",
+      "posted_at": "2026-09-02T07:27:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "6f4922ca38/post_09_ISTJ",
+      "title": "ISTJがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680835775046830101",
+      "posted_at": "2026-09-02T07:27:43+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "6f4922ca38/post_10_ISFJ",
+      "title": "ISFJがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680835590007326741",
+      "posted_at": "2026-09-02T07:27:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "6f4922ca38/post_11_ESTJ",
+      "title": "ESTJがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680835752674199572",
+      "posted_at": "2026-09-02T07:28:04+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "6f4922ca38/post_12_ESFJ",
+      "title": "ESFJがしんどい時に出るサイン",
+      "publish_id": "p_inbox_url~v2.7680835755240998932",
+      "posted_at": "2026-09-02T07:28:13+00:00",
+      "status": "SENT"
     }
   ]
 }

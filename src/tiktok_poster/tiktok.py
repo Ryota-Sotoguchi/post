@@ -185,6 +185,10 @@ def access_token(config: Config) -> str:
     stored = load_tokens(config)
     if stored and stored.access_token and stored.is_fresh:
         return stored.access_token
+    # A CI run has no token file, and the sandbox will not refresh, so an
+    # access token passed in by hand is the only credential it can have.
+    if config.access_token:
+        return config.access_token
     return refresh_tokens(config).access_token
 
 

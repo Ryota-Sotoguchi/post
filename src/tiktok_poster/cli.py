@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import subprocess
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
@@ -156,9 +157,46 @@ def _run_daily(args: argparse.Namespace) -> int:
     except tiktok.TikTokError as error:
         print(f"Could not authorize: {error}")
         return 1
-    print("\nAuthorized. Sending the day's batch.\n")
+    print("\nAuthorized.")
 
+    if args.sync_secret:
+        if _push_access_token(config) != 0:
+            return 1
+
+    if args.no_post:
+        return 0
+    print()
     return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push, delay=10.0))
+
+
+def _push_access_token(config: Config) -> int:
+    """Hand the fresh access token to Actions.
+
+    The sandbox will not refresh, so the scheduled runs cannot obtain a
+    credential on their own; this is what makes one browser approval cover a
+    day of unattended sends. The value goes to gh over stdin so it never
+    reaches a process listing or the shell history.
+    """
+    token = tiktok.load_tokens(config)
+    if not token or not token.access_token:
+        print("No access token to publish.")
+        return 1
+    try:
+        result = subprocess.run(
+            ["gh", "secret", "set", "TIKTOK_ACCESS_TOKEN"],
+            input=token.access_token,
+            text=True,
+            capture_output=True,
+            cwd=config.project_root,
+        )
+    except FileNotFoundError:
+        print("gh is not installed, so the scheduled runs cannot be given the token.")
+        return 1
+    if result.returncode != 0:
+        print(f"Could not store the token: {result.stderr.strip()}")
+        return 1
+    print(f"Stored for the scheduled runs; they can post until {token.expires_at}.")
+    return 0
 
 
 def _run_post(args: argparse.Namespace) -> int:
@@ -269,6 +307,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     daily.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")
     daily.add_argument("--no-push", action="store_true", help="Do not commit the state file")
+    daily.add_argument(
+        "--sync-secret",
+        action="store_true",
+        help="Give the fresh access token to GitHub Actions so the day's scheduled runs can post",
+    )
+    daily.add_argument("--no-post", action="store_true", help="Only authorize; send nothing now")
 
     check = sub.add_parser("check", help="Poll TikTok for the status of sent carousels")
     check.add_argument("--limit", type=int, default=10)

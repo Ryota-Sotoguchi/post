@@ -1,19 +1,23 @@
 name: Post to TikTok drafts
 
-# The schedule is off because a sandbox app cannot refresh its token: the
-# access token dies after 24 hours and grant_type=refresh_token comes back
-# invalid_grant, so an unattended run has nothing valid to post with. Posting
-# itself works, so this stays ready to switch back on the day the app clears
-# review and moves to production.
+# Ten slots a day, last at 22:00 JST (times below are UTC).
 #
-# Times below are UTC: 08:00 / 12:00 / 18:00 / 20:00 / 22:00 JST.
+# Only six drafts may sit unpublished at once, so a slot that finds the inbox
+# full stops without sending and without failing — the carousel stays queued
+# and the next slot picks it up once something has been published. Spreading
+# the day this way is what lets ten through a cap of six.
 on:
-  # schedule:
-  #   - cron: "0 23 * * *"
-  #   - cron: "0 3 * * *"
-  #   - cron: "0 9 * * *"
-  #   - cron: "0 11 * * *"
-  #   - cron: "0 13 * * *"
+  schedule:
+    - cron: "0 23 * * *"   # 08:00 JST
+    - cron: "30 0 * * *"   # 09:30
+    - cron: "0 2 * * *"    # 11:00
+    - cron: "30 3 * * *"   # 12:30
+    - cron: "0 5 * * *"    # 14:00
+    - cron: "30 6 * * *"   # 15:30
+    - cron: "0 8 * * *"    # 17:00
+    - cron: "30 9 * * *"   # 18:30
+    - cron: "0 11 * * *"   # 20:00
+    - cron: "0 13 * * *"   # 22:00
   workflow_dispatch:
     inputs:
       count:
@@ -24,8 +28,6 @@ on:
         type: boolean
         default: false
 
-# Two runs sharing one refresh token would invalidate each other's, since
-# TikTok rotates it on every exchange.
 concurrency:
   group: tiktok-post
   cancel-in-progress: false
@@ -45,34 +47,27 @@ jobs:
 
       - run: pip install -e .
 
+      # TIKTOK_ACCESS_TOKEN is refreshed by `daily --sync-secret` from a machine
+      # with a browser. The sandbox refuses grant_type=refresh_token, so this
+      # job cannot renew the credential itself; when the 24 hours run out the
+      # step fails loudly, which is the signal to run `daily` again.
       - name: Send the next carousel
         env:
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
           TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
-          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+          TIKTOK_ACCESS_TOKEN: ${{ secrets.TIKTOK_ACCESS_TOKEN }}
         run: |
           python -m tiktok_poster post \
             --count "${{ inputs.count || 1 }}" \
             ${{ inputs.dry_run == true && '--dry-run' || '' }} \
             --no-push
 
-      # Runs even on failure: the token may have been rotated before the send
-      # broke, and the old one is dead the moment a new one is issued.
-      - name: Store the rotated refresh token
-        if: always()
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          [ -f state/tokens.json ] || exit 0
-          NEW=$(python -c "import json; print(json.load(open('state/tokens.json'))['refresh_token'])")
-          echo "::add-mask::$NEW"
-          gh secret set TIKTOK_REFRESH_TOKEN --body "$NEW"
-
       - name: Record what was sent
         if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin main
           git add state/posted.json
           git diff --cached --quiet && exit 0
           git commit -m "state: sent via Actions"

@@ -40,6 +40,7 @@ class Config:
     client_key: str | None
     client_secret: str | None
     refresh_token: str | None
+    access_token: str | None
 
     @property
     def is_authorized(self) -> bool:
@@ -71,4 +72,8 @@ def load_config(project_root: Path | None = None) -> Config:
         client_key=settings.get("TIKTOK_CLIENT_KEY") or None,
         client_secret=settings.get("TIKTOK_CLIENT_SECRET") or None,
         refresh_token=settings.get("TIKTOK_REFRESH_TOKEN") or None,
+        # The sandbox refuses grant_type=refresh_token, so a run that has no
+        # token file works from an access token handed to it instead. It
+        # lasts 24 hours, which is the whole reason `daily` exists.
+        access_token=settings.get("TIKTOK_ACCESS_TOKEN") or None,
     )
