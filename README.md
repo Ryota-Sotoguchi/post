@@ -39,12 +39,14 @@ curl -sSfL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python
 
 ### 2. 設定
 
-`.env.example` を `.env` にコピーして埋めます。
+プロジェクト直下に `.env` を作ります（リポジトリには含めません）。
 
 ```
 SOURCE_DIR=/mnt/c/Users/<user>/OneDrive - .../Microsoft Copilot Chat ファイル
 PAGES_BASE_URL=https://<user>.github.io/post/media
 POSTS_PER_DAY=5
+JPEG_QUALITY=90
+KEEP_PUBLISHED_POSTS=20
 TIKTOK_CLIENT_KEY=...
 TIKTOK_CLIENT_SECRET=...
 ```
