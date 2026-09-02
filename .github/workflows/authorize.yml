@@ -35,6 +35,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
           REDIRECT_URL: ${{ inputs.redirect_url }}
         run: |
+          # The code is single-use and dies in minutes, but the run log is
+          # public on a public repo, so keep it out of the log all the same.
+          echo "::add-mask::$REDIRECT_URL"
           python -m tiktok_poster authorize \
             --redirect-uri "https://ryota-sotoguchi.github.io/post/" \
             --code "$REDIRECT_URL" \
