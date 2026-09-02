@@ -127,3 +127,14 @@ def test_recently_sent_carousels_stay_reachable_after_pruning(config: Config) ->
     posts = scan(config.source_dir)
     assert post_publish_dir(config, posts[0]).exists()
     assert post_publish_dir(config, posts[1]).exists()
+
+
+def test_a_publish_failure_sends_nothing_and_keeps_the_batch_pending(config: Config) -> None:
+    _authorize(config)
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.push", side_effect=PagesError("no upstream")
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts") as send_mock:
+        assert _run_post(_args()) == 1
+
+    send_mock.assert_not_called()
+    assert load_state(config.state_path).records == []

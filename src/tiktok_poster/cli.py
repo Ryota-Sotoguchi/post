@@ -91,10 +91,16 @@ def _run_post(args: argparse.Namespace) -> int:
                 print(f"    {url}")
         return 0
 
-    if pages.push(config, f"media: publish {len(batch)} carousel(s)"):
-        print("Pushed media to GitHub Pages")
-    for post in batch:
-        pages.wait_until_live(urls_by_key[post.key])
+    try:
+        if pages.push(config, f"media: publish {len(batch)} carousel(s)"):
+            print("Pushed media to GitHub Pages")
+        for post in batch:
+            pages.wait_until_live(urls_by_key[post.key])
+    except pages.PagesError as error:
+        # Nothing is recorded, so the next run retries this same batch.
+        print(f"Could not publish the images: {error}")
+        print("TikTok can only pull from a live URL, so no drafts were sent.")
+        return 1
     print("Pages is serving the images")
 
     failures = 0
