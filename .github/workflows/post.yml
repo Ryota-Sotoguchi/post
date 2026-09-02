@@ -41,6 +41,16 @@ jobs:
 
       - run: pip install -e .
 
+      - name: Fingerprint the stored refresh token
+        env:
+          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
+        run: |
+          python -c "
+          import hashlib, os
+          t = os.environ['TIKTOK_REFRESH_TOKEN']
+          print(f'len={len(t)} sha256={hashlib.sha256(t.encode()).hexdigest()[:16]}')
+          "
+
       - name: Send the next carousel
         env:
           TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
