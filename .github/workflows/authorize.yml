@@ -1,0 +1,41 @@
+name: Authorize for today
+
+# The sandbox will not refresh a token, so a person has to approve once a day.
+# That approval needs a browser, which a locked PC cannot provide — this lets
+# the whole thing happen on a phone: approve in TikTok, land on the project
+# page, and paste the address it shows into this workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      redirect_url:
+        description: The address you landed on after approving (paste the whole thing)
+        required: true
+
+concurrency:
+  group: tiktok-authorize
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      - name: Exchange the code and store today's token
+        env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REDIRECT_URL: ${{ inputs.redirect_url }}
+        run: |
+          python -m tiktok_poster authorize \
+            --redirect-uri "https://ryota-sotoguchi.github.io/post/" \
+            --code "$REDIRECT_URL" \
+            --sync-secret

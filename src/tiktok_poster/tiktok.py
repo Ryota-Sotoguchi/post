@@ -208,6 +208,11 @@ def send_to_drafts(config: Config, title: str, description: str, photo_urls: lis
         "post_info": {
             "title": title[:TITLE_LIMIT],
             "description": description[:DESCRIPTION_LIMIT],
+            # The API has no field that names a track. auto_add_music is the
+            # only music control photo posts accept, and it lets TikTok pick
+            # from what it is currently recommending; the choice can still be
+            # changed by hand in the app before publishing.
+            "auto_add_music": True,
         },
         "source_info": {
             "source": "PULL_FROM_URL",

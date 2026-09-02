@@ -101,9 +101,10 @@ def _run_status(_args: argparse.Namespace) -> int:
 def _run_authorize(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     if args.code:
-        tokens = oauth.exchange_code(config, args.code, args.redirect_uri)
-        print(f"Authorized. Tokens stored in {tiktok.tokens_path(config)}")
-        print(f"Access token expires {tokens.expires_at}; the refresh token lasts a year.")
+        tokens = oauth.exchange_code(config, _extract_code(args.code), args.redirect_uri)
+        print(f"Authorized. Access token expires {tokens.expires_at}.")
+        if args.sync_secret:
+            return _push_access_token(config)
         return 0
 
     url, state = oauth.authorize_url(config, args.redirect_uri)
@@ -291,7 +292,12 @@ def _build_parser() -> argparse.ArgumentParser:
 
     authorize = sub.add_parser("authorize", help="Run the one-time OAuth consent")
     authorize.add_argument("--redirect-uri", required=True, help="Must match the app's registered redirect URI")
-    authorize.add_argument("--code", help="Authorization code pasted back from the redirect")
+    authorize.add_argument("--code", help="The redirect URL, or just its code, pasted back from the browser")
+    authorize.add_argument(
+        "--sync-secret",
+        action="store_true",
+        help="Give the fresh access token to GitHub Actions",
+    )
 
     post = sub.add_parser("post", help="Send the next carousels to drafts")
     post.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")

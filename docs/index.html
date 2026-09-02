@@ -1,24 +1,95 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MBTI Carousel Scheduler</title>
 <link rel="stylesheet" href="style.css">
+<style>
+  .step { border: 1px solid #d8dce3; border-radius: 10px; padding: 1rem 1.15rem; margin: 1rem 0; }
+  .step h2 { margin: 0 0 .5rem; font-size: 1rem; }
+  .btn {
+    display: block; text-align: center; text-decoration: none;
+    padding: .85rem 1rem; border-radius: 8px; font-weight: 600;
+    background: #fe2c55; color: #fff; border: 0; width: 100%; font-size: 1rem; cursor: pointer;
+  }
+  .btn.secondary { background: #eef0f4; color: #16181d; }
+  code.code { display: block; word-break: break-all; background: #f5f6f8; color: #16181d;
+              padding: .7rem; border-radius: 6px; font-size: .78rem; margin: .6rem 0; }
+  .ok { color: #0a7d33; font-weight: 600; }
+  @media (prefers-color-scheme: dark) {
+    .step { border-color: #333a45; }
+    .btn.secondary { background: #262b33; color: #e8eaed; }
+    code.code { background: #1c2027; color: #e8eaed; }
+  }
+</style>
 
 <h1>MBTI Carousel Scheduler</h1>
-<p class="updated">A personal tool for scheduling MBTI image carousels to TikTok drafts.</p>
+<p class="updated">1日1回、ここで承認すると当日の自動投稿が動きます。</p>
 
-<p>
-  This site hosts the images for a personal command-line tool that sends the operator's own
-  MBTI-themed image carousels to their own TikTok drafts, where they are reviewed and
-  published manually. It is not affiliated with TikTok or ByteDance.
-</p>
+<div id="landed" hidden>
+  <div class="step">
+    <h2>2. このアドレスをコピー</h2>
+    <code class="code" id="url"></code>
+    <button class="btn" id="copy">コピーする</button>
+  </div>
+  <div class="step">
+    <h2>3. Actions に貼り付けて実行</h2>
+    <p>「Run workflow」を開き、コピーしたアドレスを貼って実行してください。</p>
+    <a class="btn secondary" target="_blank" rel="noopener"
+       href="https://github.com/Ryota-Sotoguchi/post/actions/workflows/authorize.yml">Actions を開く</a>
+  </div>
+</div>
+
+<div id="start">
+  <div class="step">
+    <h2>1. TikTok で承認</h2>
+    <p>投稿用アカウントでログインした状態で開いてください。</p>
+    <button class="btn" id="go">承認をはじめる</button>
+  </div>
+</div>
 
 <h2>Legal</h2>
 <ul>
   <li><a href="terms.html">Terms of Service</a></li>
   <li><a href="privacy.html">Privacy Policy</a></li>
 </ul>
-
-<h2>Source</h2>
 <p><a href="https://github.com/Ryota-Sotoguchi/post" target="_blank" rel="noopener">github.com/Ryota-Sotoguchi/post</a></p>
+
+<script>
+  var CLIENT_KEY = "SBAW187uO3YXVR7DMU";
+  var REDIRECT = "https://ryota-sotoguchi.github.io/post/";
+
+  // Landing back here with a code is the only signal that step 1 is done.
+  if (new URLSearchParams(location.search).get("code")) {
+    document.getElementById("start").hidden = true;
+    document.getElementById("landed").hidden = false;
+    document.getElementById("url").textContent = location.href;
+  }
+
+  document.getElementById("go").onclick = function () {
+    var state = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+    location.href = "https://www.tiktok.com/v2/auth/authorize/"
+      + "?client_key=" + encodeURIComponent(CLIENT_KEY)
+      + "&scope=" + encodeURIComponent("user.info.basic,video.upload")
+      + "&response_type=code"
+      + "&redirect_uri=" + encodeURIComponent(REDIRECT)
+      + "&state=" + state;
+  };
+
+  document.getElementById("copy").onclick = function () {
+    var button = this;
+    navigator.clipboard.writeText(location.href).then(function () {
+      button.textContent = "コピーしました";
+      button.className = "btn secondary";
+    }, function () {
+      // Clipboard access is refused in some in-app browsers; selecting the
+      // text is the fallback that always works.
+      var range = document.createRange();
+      range.selectNodeContents(document.getElementById("url"));
+      getSelection().removeAllRanges();
+      getSelection().addRange(range);
+      button.textContent = "選択しました。長押しでコピーしてください";
+    });
+  };
+</script>
+</html>

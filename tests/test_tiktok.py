@@ -162,3 +162,16 @@ def test_a_rotated_token_survives_a_broken_response(config):
             refresh_tokens(config)
 
     assert load_tokens(config).refresh_token == "rotated-token"
+
+
+def test_photo_posts_ask_tiktok_to_pick_the_music(config: Config) -> None:
+    """No API field names a track, so the recommendation is the only option.
+
+    Without it every carousel arrives silent and the music has to be chosen by
+    hand before each one can be published.
+    """
+    _fresh_tokens(config)
+    with patch("tiktok_poster.tiktok.requests.post", return_value=_ok()) as post_mock:
+        send_to_drafts(config, "t", "d", URLS)
+
+    assert post_mock.call_args.kwargs["json"]["post_info"]["auto_add_music"] is True
