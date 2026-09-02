@@ -118,3 +118,25 @@ def test_an_expired_access_token_triggers_a_refresh(config: Config) -> None:
     )
     with patch("tiktok_poster.tiktok.requests.post", return_value=payload):
         assert access_token(config) == "access-new"
+
+
+def test_an_oauth_style_error_is_reported_not_crashed(config):
+    """The OAuth endpoints return `error` as a string, not as an object.
+
+    Treating it like the content API's nested error raised AttributeError and
+    buried the real reason a refresh had failed.
+    """
+    from unittest.mock import patch
+
+    from tiktok_poster.tiktok import TikTokError, refresh_tokens
+
+    response = FakeResponse(
+        {"error": "invalid_grant", "error_description": "Refresh token is invalid or expired."},
+        status_code=400,
+    )
+    with patch("tiktok_poster.tiktok.requests.post", return_value=response):
+        with pytest.raises(TikTokError) as excinfo:
+            refresh_tokens(config)
+
+    assert "invalid_grant" in str(excinfo.value)
+    assert "invalid or expired" in str(excinfo.value)

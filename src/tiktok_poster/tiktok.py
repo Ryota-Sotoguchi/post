@@ -88,10 +88,19 @@ def _check(response: requests.Response, what: str) -> dict:
     except ValueError as exc:
         raise TikTokError(f"{what}: non-JSON response ({response.status_code})") from exc
 
-    error = payload.get("error") or {}
-    code = str(error.get("code", "")).lower()
-    if code and code not in {"ok", ""}:
-        raise TikTokError(f"{what}: {error.get('code')} - {error.get('message')}")
+    # The two endpoints disagree on the shape of an error: /post/publish/
+    # nests {"code", "message"}, while the OAuth endpoints follow RFC 6749 and
+    # return a bare string with error_description beside it.
+    error = payload.get("error")
+    if isinstance(error, dict):
+        code, message = error.get("code", ""), error.get("message", "")
+    elif isinstance(error, str):
+        code, message = error, payload.get("error_description", "")
+    else:
+        code, message = "", ""
+
+    if str(code).lower() not in {"", "ok"}:
+        raise TikTokError(f"{what}: {code} - {message}")
     if response.status_code >= 400:
         raise TikTokError(f"{what}: HTTP {response.status_code} - {response.text[:400]}")
     return payload
