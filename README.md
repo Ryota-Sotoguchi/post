@@ -207,23 +207,27 @@ TikTok は未公開の下書きが一定数を超えると新規受付を拒否�
 
 送信に失敗したものは記録されないので、次に実行したときに自動で再試行されます。
 
-## サンドボックスで分かったこと（2026-09-02 検証）
+## サンドボックスで確認できたこと（2026-09-02）
 
-**サンドボックスのアプリでは実運用できません。** API は成功を返しますが実体が伴いません。
+**確認できた事実**
 
-| 操作 | API の応答 | 実際 |
-|---|---|---|
-| `grant_type=refresh_token` | HTTP 200 | `invalid_grant`。発行直後のトークンでも拒否され、24時間で詰む |
-| `/v2/user/info/`（`user.info.basic` を要求・承認済み） | — | `scope_not_authorized` |
-| `content/init`（PHOTO / MEDIA_UPLOAD） | `SEND_TO_USER_INBOX` | **アプリに現れない** |
+| 操作 | 結果 |
+|---|---|
+| `grant_type=refresh_token` | HTTP 200 / `invalid_grant`。発行直後のトークンでも拒否される |
+| `/v2/user/info/`（`user.info.basic` を要求・承認） | `scope_not_authorized` |
+| `content/init`（PHOTO / MEDIA_UPLOAD） | `status: SEND_TO_USER_INBOX` / `error.code: ok`。**TikTok は配信成功と回答** |
+| 未公開の下書きが溜まった状態 | `spam_risk_too_many_pending_share`（実測6本前後で拒否） |
+| 本番アプリの `client_key` | 審査承認前は認可エラー |
 
-配信先アカウントは「設定 → セキュリティと権限 → アプリの管理」に本アプリが表示されることで確認済みなので、
-アカウント違いではありません。
+**公式ドキュメントの記述**
 
-同時に判明した TikTok 側の制限:
+- 写真の `MEDIA_UPLOAD` は正式にサポートされている（Photo Post リファレンス）
+- サンドボックスの除外対象は原文で *"Sandbox mode does not offer access to Content Posting API for public videos or Data Portability API."* ——
+  **"public videos" に限定されており、下書き/受信箱アップロードは除外されていない**
+- アップロード後の導線は *"they must click on inbox notifications to continue the editing flow in TikTok"*
+  ——アプリの**受信トレイの通知**から編集フローに入る
 
-- 未公開の下書きが溜まると `spam_risk_too_many_pending_share` で新規受付を拒否（実測6本前後）。**在庫の作り置きは不可**
-- 本番アプリの `client_key` は審査承認まで有効にならない（Draft でも Save 済みでも認可エラー）
+**未解決**
 
-つまり **MEDIA_UPLOAD であっても、実際に動かすには審査承認が必要**です。
-「下書き送信なら審査不要」は投稿モードの話としては正しいものの、アプリを本番で使えるようにする審査は別途必要でした。
+送信した6本がアプリ側で確認できていない。TikTok は成功を返しており、公式仕様上も不可という根拠はないため、
+原因は特定できていない。受信トレイの通知を確認する必要がある。
