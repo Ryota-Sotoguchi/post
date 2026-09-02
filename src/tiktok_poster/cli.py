@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from urllib.parse import parse_qs, unquote
 
 from tiktok_poster import media, oauth, pages, tiktok
 from tiktok_poster.catalog import Upload, load_manifest, manifest_path, scan, write_manifest
@@ -104,6 +105,53 @@ def _run_authorize(args: argparse.Namespace) -> int:
     return 0
 
 
+def _extract_code(pasted: str) -> str:
+    """Pull the code out of whatever the browser left in the address bar.
+
+    The redirect lands on a plain page, so what is at hand is the whole URL,
+    and its code is percent-encoded. Pasting that verbatim used to fail with a
+    misleading error, so anything recognisable is accepted.
+    """
+    pasted = pasted.strip()
+    if "code=" in pasted:
+        codes = parse_qs(pasted.split("?", 1)[-1]).get("code")
+        if codes:
+            return codes[0]
+    return unquote(pasted)
+
+
+def _run_daily(args: argparse.Namespace) -> int:
+    """Authorize and send the day's batch in one sitting.
+
+    A sandbox app cannot refresh its token, so the consent has to be redone
+    roughly once a day. Bundling it with the send keeps that to one paste.
+    """
+    config = load_config(Path.cwd())
+    url, state = oauth.authorize_url(config, args.redirect_uri)
+    print("1. Open this and approve:\n")
+    print(f"   {url}\n")
+    print("2. Paste the address you land on (the whole URL is fine):")
+    try:
+        pasted = input("   > ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nCancelled.")
+        return 1
+    if not pasted:
+        print("Nothing pasted.")
+        return 1
+    if "code=" in pasted and state not in pasted:
+        print("Warning: that redirect is from a different request than the one just printed.")
+
+    try:
+        oauth.exchange_code(config, _extract_code(pasted), args.redirect_uri)
+    except tiktok.TikTokError as error:
+        print(f"Could not authorize: {error}")
+        return 1
+    print("\nAuthorized. Sending the day's batch.\n")
+
+    return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push))
+
+
 def _run_post(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     try:
@@ -192,6 +240,15 @@ def _build_parser() -> argparse.ArgumentParser:
     post.add_argument("--dry-run", action="store_true", help="Print what would be sent, without calling TikTok")
     post.add_argument("--no-push", action="store_true", help="Do not commit the state file")
 
+    daily = sub.add_parser("daily", help="Re-authorize and send the day's batch in one go")
+    daily.add_argument(
+        "--redirect-uri",
+        default="https://ryota-sotoguchi.github.io/post/",
+        help="Must match the app's registered redirect URI",
+    )
+    daily.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")
+    daily.add_argument("--no-push", action="store_true", help="Do not commit the state file")
+
     check = sub.add_parser("check", help="Poll TikTok for the status of sent carousels")
     check.add_argument("--limit", type=int, default=10)
 
@@ -205,6 +262,7 @@ def main() -> None:
         "status": _run_status,
         "authorize": _run_authorize,
         "post": _run_post,
+        "daily": _run_daily,
         "check": _run_check,
     }
     raise SystemExit(handlers[args.command](args))

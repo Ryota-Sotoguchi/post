@@ -173,3 +173,19 @@ def test_wait_until_live_gives_up_rather_than_sending_a_dead_url() -> None:
 def test_wait_until_live_returns_once_pages_serves() -> None:
     with patch("tiktok_poster.pages.requests.head", return_value=FakeHead(200)):
         wait_until_live(["https://example.com/a.jpg"], attempts=1, delay=0)
+
+
+@pytest.mark.parametrize(
+    "pasted",
+    [
+        "https://ryota-sotoguchi.github.io/post/?code=abc%2Av%215320.s1&state=xyz",
+        "code=abc%2Av%215320.s1&scopes=user.info.basic%2Cvideo.upload&state=xyz",
+        "abc%2Av%215320.s1",
+        "abc*v!5320.s1",
+    ],
+)
+def test_the_pasted_redirect_is_decoded_however_it_arrives(pasted: str) -> None:
+    """The code is percent-encoded in the address bar; pasting it raw must work."""
+    from tiktok_poster.cli import _extract_code
+
+    assert _extract_code(pasted) == "abc*v!5320.s1"

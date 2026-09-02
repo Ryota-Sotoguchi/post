@@ -1,15 +1,19 @@
 name: Post to TikTok drafts
 
-# Times are UTC; these are 08:00 / 12:00 / 18:00 / 20:00 / 22:00 JST.
-# GitHub can run a scheduled job late under load, which is harmless here:
-# the queue is ordered, so a delayed run just sends the next carousel.
+# The schedule is off because a sandbox app cannot refresh its token: the
+# access token dies after 24 hours and grant_type=refresh_token comes back
+# invalid_grant, so an unattended run has nothing valid to post with. Posting
+# itself works, so this stays ready to switch back on the day the app clears
+# review and moves to production.
+#
+# Times below are UTC: 08:00 / 12:00 / 18:00 / 20:00 / 22:00 JST.
 on:
-  schedule:
-    - cron: "0 23 * * *"
-    - cron: "0 3 * * *"
-    - cron: "0 9 * * *"
-    - cron: "0 11 * * *"
-    - cron: "0 13 * * *"
+  # schedule:
+  #   - cron: "0 23 * * *"
+  #   - cron: "0 3 * * *"
+  #   - cron: "0 9 * * *"
+  #   - cron: "0 11 * * *"
+  #   - cron: "0 13 * * *"
   workflow_dispatch:
     inputs:
       count:
@@ -40,16 +44,6 @@ jobs:
           python-version: "3.12"
 
       - run: pip install -e .
-
-      - name: Fingerprint the stored refresh token
-        env:
-          TIKTOK_REFRESH_TOKEN: ${{ secrets.TIKTOK_REFRESH_TOKEN }}
-        run: |
-          python -c "
-          import hashlib, os
-          t = os.environ['TIKTOK_REFRESH_TOKEN']
-          print(f'len={len(t)} sha256={hashlib.sha256(t.encode()).hexdigest()[:16]}')
-          "
 
       - name: Send the next carousel
         env:

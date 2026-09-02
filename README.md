@@ -91,7 +91,24 @@ TIKTOK_CLIENT_SECRET=...
 全カルーセルを JPEG に変換して `docs/media/` に配置し、`manifest.json`（タイトル・ハッシュタグ・画像URLの一覧）を書き出して push します。
 **このコマンドだけが OneDrive を必要とします。** 新しい画像を追加したら再実行してください。
 
-### 7. GitHub Actions を設定する
+### 7. 毎日の運用
+
+```bash
+.venv/bin/python -m tiktok_poster daily
+```
+
+認可URLが表示されるので、ブラウザで承認し、**戻ってきたアドレスをそのまま貼り付けます**。
+続けてその日の5本が下書きへ送られます。
+
+**なぜ毎日認可が必要か**
+
+サンドボックスのアプリは `grant_type=refresh_token` が `invalid_grant` で拒否されます。
+アクセストークンは24時間で切れ、更新できないため、1日1回の再認可が避けられません。
+投稿そのものは問題なく動きます。
+
+審査を通して本番アプリになれば、この制約はなくなり下の GitHub Actions に移行できます。
+
+### 8. GitHub Actions（審査通過後）
 
 リポジトリの Settings → Secrets and variables → Actions で4つ登録します。
 
@@ -106,13 +123,15 @@ TIKTOK_CLIENT_SECRET=...
 **Secrets: Read and write** と **Contents: Read and write** を許可します。
 リフレッシュトークンは使うたびに新しくなるため、Actions が自分で Secret を更新できないと翌日から動かなくなります。
 
-以降 8:00 / 12:00 / 18:00 / 20:00 / 22:00 (JST) に1本ずつ自動送信されます。PC は不要です。
+本番アプリになったら `.github/workflows/post.yml` の `schedule:` のコメントを外してください。
+以降 8:00 / 12:00 / 18:00 / 20:00 / 22:00 (JST) に1本ずつ自動送信され、PC は不要になります。
 
 > Actions タブから手動実行もできます（送信本数の指定と dry-run が可能）。
 
 ## 使い方
 
 ```bash
+python -m tiktok_poster daily               # 再認可してその日の分を送る（通常はこれだけ）
 python -m tiktok_poster sync                # 画像を変換して全部公開（要 OneDrive）
 python -m tiktok_poster status              # 在庫と次に送る分
 python -m tiktok_poster post --dry-run      # 送信内容を表示（API は叩かない）
