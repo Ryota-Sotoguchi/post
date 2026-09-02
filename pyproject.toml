@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tiktok-poster"
+version = "0.1.0"
+description = "Queues MBTI carousels from a sync folder into TikTok drafts"
+requires-python = ">=3.10"
+dependencies = [
+  "Pillow>=11,<14",
+  "requests>=2.32,<3",
+]
+
+[project.scripts]
+tiktok-poster = "tiktok_poster.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
