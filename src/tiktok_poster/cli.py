@@ -77,7 +77,15 @@ def _run_status(_args: argparse.Namespace) -> int:
     print(f"Pending       : {len(pending)}")
     if config.posts_per_day:
         print(f"Days of stock : {len(pending) // config.posts_per_day} at {config.posts_per_day}/day")
-    print(f"Authorized    : {'yes' if tiktok.load_tokens(config) or config.is_authorized else 'no'}")
+    # The sandbox cannot refresh, so what matters is not whether a token was
+    # ever obtained but whether the one on disk is still inside its 24 hours.
+    tokens = tiktok.load_tokens(config)
+    if tokens and tokens.is_fresh:
+        print(f"Token         : usable until {tokens.expires_at}")
+    elif tokens:
+        print(f"Token         : EXPIRED at {tokens.expires_at} - run `daily` to re-authorize")
+    else:
+        print("Token         : none - run `daily` to authorize")
     print(f"Pages base URL: {config.pages_base_url or '(unset)'}")
 
     if pending:

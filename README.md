@@ -173,3 +173,27 @@ GitHub Actions を使わず Windows のタスクスケジューラで回すこ�
 
 同じ5つの時刻に実行しますが、**PC が起動している必要があります**。
 消えていた時間帯の分は次に起動したときにまとめて送られます。
+
+## 手動で送るとき
+
+新しい画像を置いたあと、または送り残しを送りたいときの手順です。
+
+```bash
+cd ~/work/tiktok
+
+# 1. 状況を見る（在庫・未送信・トークンが使えるか）
+.venv/bin/python -m tiktok_poster status
+
+# 2. OneDrive に増えた画像を取り込む（増えていなければ数秒で終わる）
+.venv/bin/python -m tiktok_poster sync
+
+# 3. 未送信を送る
+.venv/bin/python -m tiktok_poster daily --count 200   # トークンが切れている場合
+.venv/bin/python -m tiktok_poster post  --count 200   # まだ使える場合（status で確認）
+```
+
+`--count` は上限であって必須本数ではありません。未送信がそれ以下ならある分だけ送ります。
+送信済みは `state/posted.json` に記録され、**同じカルーセルが二度送られることはありません**。
+`--count 5` にすればその日の分だけ送れます。
+
+送信に失敗したものは記録されないので、次に実行したときに自動で再試行されます。
