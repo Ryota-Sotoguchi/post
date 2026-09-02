@@ -43,7 +43,7 @@ curl -sSfL https://bootstrap.pypa.io/get-pip.py | .venv/bin/python
 
 ```
 SOURCE_DIR=/mnt/c/Users/<user>/OneDrive - .../Microsoft Copilot Chat ファイル
-PAGES_BASE_URL=https://<user>.github.io/tiktok/media
+PAGES_BASE_URL=https://<user>.github.io/post/media
 POSTS_PER_DAY=5
 TIKTOK_CLIENT_KEY=...
 TIKTOK_CLIENT_SECRET=...
@@ -58,7 +58,7 @@ TIKTOK_CLIENT_SECRET=...
 
 1. [developers.tiktok.com](https://developers.tiktok.com) でアプリを作成
 2. **Content Posting API** をプロダクトに追加し、スコープ `video.upload` を申請
-3. **Manage URL properties** で `https://<user>.github.io/tiktok/media/` を URL プレフィックスとして登録
+3. **Manage URL properties** で `https://<user>.github.io/post/media/` を URL プレフィックスとして登録
 4. 発行された署名ファイルを `docs/media/` に置いて push し、ポータルで Verify
 
 > プレフィックスは完全一致で判定されます。`.../media/` を検証したなら `.../media/ab12/post_01_INTJ/01.jpg` は有効です。
