@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
@@ -149,7 +150,7 @@ def _run_daily(args: argparse.Namespace) -> int:
         return 1
     print("\nAuthorized. Sending the day's batch.\n")
 
-    return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push))
+    return _run_post(argparse.Namespace(count=args.count, dry_run=False, no_push=args.no_push, delay=10.0))
 
 
 def _run_post(args: argparse.Namespace) -> int:
@@ -179,7 +180,11 @@ def _run_post(args: argparse.Namespace) -> int:
 
     state = load_state(config.state_path)
     failures = 0
-    for upload in batch:
+    for index, upload in enumerate(batch):
+        # TikTok throttles the posting endpoint per user, and a long backlog
+        # sent flat out looks like exactly what a throttle is there to stop.
+        if index and args.delay:
+            time.sleep(args.delay)
         try:
             # The images were published by `sync`, but a freshly synced batch
             # can still be mid-deploy, and TikTok rejects a URL it cannot fetch.
@@ -239,6 +244,7 @@ def _build_parser() -> argparse.ArgumentParser:
     post.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")
     post.add_argument("--dry-run", action="store_true", help="Print what would be sent, without calling TikTok")
     post.add_argument("--no-push", action="store_true", help="Do not commit the state file")
+    post.add_argument("--delay", type=float, default=10.0, help="Seconds to wait between sends (default 10)")
 
     daily = sub.add_parser("daily", help="Re-authorize and send the day's batch in one go")
     daily.add_argument(

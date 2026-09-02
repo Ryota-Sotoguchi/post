@@ -25,7 +25,7 @@ def _sync_args(dry_run: bool = True) -> argparse.Namespace:
 
 
 def _post_args(count=None, dry_run=False, no_push=True) -> argparse.Namespace:
-    return argparse.Namespace(count=count, dry_run=dry_run, no_push=no_push)
+    return argparse.Namespace(count=count, dry_run=dry_run, no_push=no_push, delay=0)
 
 
 def _authorize(config: Config) -> None:
