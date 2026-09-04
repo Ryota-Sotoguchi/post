@@ -1,23 +1,24 @@
 name: Post to TikTok drafts
 
-# A slot every 30 minutes from 08:00 to 22:00 JST (times below are UTC).
+# Hourly from 08:00 to 22:00 JST (times below are UTC).
 #
-# Only six drafts may sit unpublished at once. A carousel blocked by a full
-# inbox is never passed over — it stays at the head of the queue — so the point
-# of firing often is to pick it up soon after the account publishes something,
-# rather than leaving it until the next of a handful of daily slots.
+# GitHub delivers scheduled runs on a best-effort basis and drops them under
+# load — a half-hourly schedule here produced four runs in a day, at times
+# unrelated to the ones asked for. So a run must not assume it is one of many:
+# each one fills the inbox as far as the six-draft cap and the day's quota
+# allow, which reaches ten a day even when most firings never happen.
 #
-# POSTS_PER_DAY is what keeps that frequency to the intended daily count.
+# A carousel blocked by a full inbox is never passed over; it stays at the head
+# of the queue for whichever run comes next.
 on:
   schedule:
-    - cron: "0,30 23 * * *"    # 08:00, 08:30 JST
-    - cron: "0,30 0-12 * * *"  # 09:00 .. 21:30 JST
-    - cron: "0 13 * * *"       # 22:00 JST
+    - cron: "0 23 * * *"     # 08:00 JST
+    - cron: "0 0-13 * * *"   # 09:00 .. 22:00 JST
   workflow_dispatch:
     inputs:
       count:
         description: How many carousels to send
-        default: "1"
+        default: "10"
       dry_run:
         description: Print what would be sent without calling TikTok
         type: boolean
@@ -56,7 +57,7 @@ jobs:
           POSTS_PER_DAY: "10"
         run: |
           python -m tiktok_poster post \
-            --count "${{ inputs.count || 1 }}" \
+            --count "${{ inputs.count || 10 }}" \
             ${{ inputs.dry_run == true && '--dry-run' || '' }} \
             --no-push
 
