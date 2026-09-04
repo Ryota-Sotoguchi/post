@@ -26,6 +26,8 @@
 <h1>MBTI Carousel Scheduler</h1>
 <p class="updated">1日1回、ここで承認すると当日の自動投稿が動きます。</p>
 
+<div class="step" id="status"><b>確認中…</b></div>
+
 <div id="landed" hidden>
   <div class="step">
     <h2>2. このアドレスをコピー</h2>
@@ -67,12 +69,41 @@
   var CLIENT_KEY = "SBAW187uO3YXVR7DMU";
   var REDIRECT = "https://ryota-sotoguchi.github.io/post/";
 
+  var landed = !!new URLSearchParams(location.search).get("code");
+
   // Landing back here with a code is the only signal that step 1 is done.
-  if (new URLSearchParams(location.search).get("code")) {
+  if (landed) {
     document.getElementById("start").hidden = true;
     document.getElementById("landed").hidden = false;
     document.getElementById("url").textContent = location.href;
   }
+
+  // The token's expiry is published after each authorization, so the page can
+  // say whether today's approval has already been done instead of leaving the
+  // same instructions up regardless.
+  var box = document.getElementById("status");
+  fetch("authorized.json?t=" + Date.now())
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      if (!d || !d.expires_at) throw 0;
+      var until = new Date(d.expires_at);
+      if (until > new Date()) {
+        var hhmm = until.toLocaleString("ja-JP", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        box.innerHTML = '<b class="ok">今日はもう完了しています</b>'
+          + '<div style="font-size:.85rem;color:#6b7280;margin-top:.35rem">'
+          + hhmm + " まで自動投稿が動きます。これ以上の操作は不要です。</div>";
+        if (!landed) document.getElementById("start").hidden = true;
+      } else {
+        box.innerHTML = "<b>今日の承認がまだです</b>"
+          + '<div style="font-size:.85rem;color:#6b7280;margin-top:.35rem">'
+          + "下の手順を行ってください。</div>";
+      }
+    })
+    .catch(function () {
+      box.innerHTML = "<b>今日の承認がまだです</b>"
+        + '<div style="font-size:.85rem;color:#6b7280;margin-top:.35rem">'
+        + "状態を取得できませんでした。念のため下の手順を行ってください。</div>";
+    });
 
   document.getElementById("go").onclick = function () {
     var state = Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);

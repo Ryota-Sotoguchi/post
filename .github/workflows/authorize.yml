@@ -18,6 +18,8 @@ concurrency:
 jobs:
   authorize:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
       - uses: actions/checkout@v5
@@ -42,3 +44,13 @@ jobs:
             --redirect-uri "https://ryota-sotoguchi.github.io/post/" \
             --code "$REDIRECT_URL" \
             --sync-secret
+
+      - name: Publish when today's token runs out
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin main
+          git add docs/authorized.json
+          git diff --cached --quiet && exit 0
+          git commit -m "authorized: token good until $(python -c "import json;print(json.load(open('docs/authorized.json'))['expires_at'])")"
+          git push

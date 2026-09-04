@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import time
 from datetime import datetime, timedelta, timezone
@@ -197,6 +198,12 @@ def _push_access_token(config: Config) -> int:
     if result.returncode != 0:
         print(f"Could not store the token: {result.stderr.strip()}")
         return 1
+    # A public marker of when today's token runs out, so the approval page can
+    # tell whether it has anything to ask for. It carries no secret.
+    marker = config.publish_dir.parent / "authorized.json"
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(json.dumps({"expires_at": token.expires_at}, indent=2), encoding="utf-8")
+
     print(f"Stored for the scheduled runs; they can post until {token.expires_at}.")
     return 0
 
