@@ -251,6 +251,48 @@
       "publish_id": "p_inbox_url~v2.7682215002631227413",
       "posted_at": "2026-09-06T00:41:00+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_01_INTJ",
+      "title": "INTJが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682961859053488149",
+      "posted_at": "2026-09-08T00:58:46+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_02_INTP",
+      "title": "INTPが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682961822579918868",
+      "posted_at": "2026-09-08T00:58:57+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_03_ENTJ",
+      "title": "ENTJが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682961859053586453",
+      "posted_at": "2026-09-08T00:59:08+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_04_ENTP",
+      "title": "ENTPが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682962406390204437",
+      "posted_at": "2026-09-08T00:59:18+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_05_INFJ",
+      "title": "INFJが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682962164072859668",
+      "posted_at": "2026-09-08T00:59:29+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "900535ac53/post_06_INFP",
+      "title": "INFPが心を許す前に見せる弱さを預ける境界線",
+      "publish_id": "p_inbox_url~v2.7682962238353573908",
+      "posted_at": "2026-09-08T00:59:40+00:00",
+      "status": "SENT"
     }
   ]
 }
