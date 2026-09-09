@@ -513,6 +513,7 @@ def _visual_identity(content_package: ContentPackage) -> dict[str, object]:
         "group_palette": content_package.group_name,
         "palette": _palette(content_package).name,
         "render_scale": RENDER_SCALE,
+        "chrome": _chrome_plan(topic_seed)["treatment"],
     }
 
 
@@ -1803,6 +1804,47 @@ def _draw_spark(draw: ImageDraw.ImageDraw, center: tuple[int, int], size: int, c
     draw.line((x - size // 2, y + size // 2, x + size // 2, y - size // 2), fill=color, width=max(2, size // 5))
 
 
+# The same double frame, four corner brackets, four jewels and bottom divider
+# used to land on every slide of every post, which is a large part of why the
+# output read as one template. These are the treatments a post can draw.
+CHROME_TREATMENTS = ("frame_full", "frame_hairline", "corners_only", "rule_top", "bare")
+
+
+def _chrome_plan(seed: int) -> dict[str, object]:
+    """Pick the chrome for a post. Salted so it does not track the layout."""
+    return {
+        "treatment": CHROME_TREATMENTS[_seed_choice(seed, "chrome", len(CHROME_TREATMENTS))],
+        "speckles": _seed_choice(seed, "speckles", 3) > 0,
+        "divider": _seed_choice(seed, "divider", 2) == 0,
+        "jewels": _seed_choice(seed, "jewels", 3) > 0,
+    }
+
+
+def _draw_chrome_speckles(draw, width: int, height: int, seed: int) -> None:
+    for index in range(84):
+        x = 54 + ((seed >> (index % 24)) + index * 149) % max(width - 108, 1)
+        y = 74 + ((seed >> ((index + 7) % 24)) + index * 233) % max(height - 148, 1)
+        radius = 1 + index % 2
+        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(255, 255, 255, 15 + (index % 3) * 5))
+
+
+def _draw_chrome_corners(draw, width: int, height: int, accent: str, light: str, jewels: bool) -> None:
+    corner = 116
+    for x_sign, y_sign in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
+        x = 56 if x_sign == 1 else width - 56
+        y = 56 if y_sign == 1 else height - 56
+        draw.line((x, y, x + x_sign * corner, y), fill=_hex_to_rgba(accent, 108), width=4)
+        draw.line((x, y, x, y + y_sign * corner), fill=_hex_to_rgba(accent, 108), width=4)
+        if not jewels:
+            continue
+        jewel_x = x + x_sign * 18
+        jewel_y = y + y_sign * 18
+        draw.polygon(
+            ((jewel_x, jewel_y - 7), (jewel_x + 7, jewel_y), (jewel_x, jewel_y + 7), (jewel_x - 7, jewel_y)),
+            fill=_hex_to_rgba(light, 150),
+        )
+
+
 def _draw_luxury_canvas_details(
     draw: ImageDraw.ImageDraw,
     width: int,
@@ -1811,32 +1853,27 @@ def _draw_luxury_canvas_details(
     light: str,
     seed: int,
 ) -> None:
-    """Add a restrained premium frame and deterministic fine texture to every slide."""
+    """Frame and texture the canvas, in one of five treatments."""
+    plan = _chrome_plan(seed)
+    treatment = plan["treatment"]
     outer = (24, 24, width - 24, height - 24)
     inner = (39, 39, width - 39, height - 39)
-    draw.rounded_rectangle(outer, radius=58, outline=_hex_to_rgba(light, 78), width=3)
-    draw.rounded_rectangle(inner, radius=48, outline=(255, 255, 255, 26), width=2)
 
-    corner = 116
-    for x_sign, y_sign in ((1, 1), (-1, 1), (1, -1), (-1, -1)):
-        x = 56 if x_sign == 1 else width - 56
-        y = 56 if y_sign == 1 else height - 56
-        draw.line((x, y, x + x_sign * corner, y), fill=_hex_to_rgba(accent, 108), width=4)
-        draw.line((x, y, x, y + y_sign * corner), fill=_hex_to_rgba(accent, 108), width=4)
-        jewel_x = x + x_sign * 18
-        jewel_y = y + y_sign * 18
-        draw.polygon(
-            ((jewel_x, jewel_y - 7), (jewel_x + 7, jewel_y), (jewel_x, jewel_y + 7), (jewel_x - 7, jewel_y)),
-            fill=_hex_to_rgba(light, 150),
-        )
+    if treatment == "frame_full":
+        draw.rounded_rectangle(outer, radius=58, outline=_hex_to_rgba(light, 78), width=3)
+        draw.rounded_rectangle(inner, radius=48, outline=(255, 255, 255, 26), width=2)
+        _draw_chrome_corners(draw, width, height, accent, light, plan["jewels"])
+    elif treatment == "frame_hairline":
+        draw.rounded_rectangle(inner, radius=48, outline=_hex_to_rgba(light, 64), width=2)
+    elif treatment == "corners_only":
+        _draw_chrome_corners(draw, width, height, accent, light, plan["jewels"])
+    elif treatment == "rule_top":
+        draw.rounded_rectangle((94, 188, width - 94, 194), radius=3, fill=_hex_to_rgba(accent, 120))
 
-    for index in range(84):
-        x = 54 + ((seed >> (index % 24)) + index * 149) % max(width - 108, 1)
-        y = 74 + ((seed >> ((index + 7) % 24)) + index * 233) % max(height - 148, 1)
-        radius = 1 + index % 2
-        draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=(255, 255, 255, 15 + (index % 3) * 5))
-
-    _draw_luxury_divider(draw, 94, width - 94, height - 112, accent, light)
+    if plan["speckles"]:
+        _draw_chrome_speckles(draw, width, height, seed)
+    if plan["divider"] and treatment != "bare":
+        _draw_luxury_divider(draw, 94, width - 94, height - 112, accent, light)
 
 
 def _build_background_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
@@ -1996,8 +2033,10 @@ def _build_character_layer(
         scale = thumbnail_scales[composition_variant] if is_thumbnail else content_scales[composition_variant]
         max_size = (max(int(dev_width * scale), 1), max(int(dev_height * scale), 1))
         source.thumbnail(max_size, Image.Resampling.LANCZOS)
-        if not is_thumbnail and composition_variant in {0, 2, 4, 7}:
-            source = ImageOps.mirror(source)
+        # Not mirrored. Some of the provided art carries lettering - the ESTP
+        # bag reads SPORT - and a flip renders it backwards, which looks like a
+        # mistake rather than a variation. Scale, rotation and offset below
+        # still vary the composition.
         thumbnail_angles = (-2, 2, 0, 3, -1, 2, -3, 1)
         content_angles = (-7, 6, -4, 8, -6, 5, -8, 4)
         angle = thumbnail_angles[composition_variant] if is_thumbnail else content_angles[composition_variant]
@@ -2024,8 +2063,10 @@ def _build_character_layer(
             method=Image.Resampling.LANCZOS,
             centering=(centering_x, centering_y),
         )
-        if not is_thumbnail and composition_variant in {0, 2, 4, 7}:
-            portrait = ImageOps.mirror(portrait)
+        # Not mirrored. Some of the provided art carries lettering - the ESTP
+        # bag reads SPORT - and a flip renders it backwards, which looks like a
+        # mistake rather than a variation. Scale, rotation and offset below
+        # still vary the composition.
         mask = Image.new("L", portrait.size, 0)
         mask_draw = ImageDraw.Draw(mask)
         frame_style = (topic_variant + scene_index) % 3
