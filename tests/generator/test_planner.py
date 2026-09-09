@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import requests
 
 from mbti_tiktok_bot.config import load_config
-from mbti_tiktok_bot.planner import _build_title, _generate_topics_with_llm, _naturalize_topic_name, _procedural_topic_records, build_daily_packages, build_template_package, load_series_state, maybe_polish_with_llm, persist_package, resolve_target_date, topic_for_post_index
+from mbti_tiktok_bot.planner import MAX_CONTENT_SCENES, MIN_CONTENT_SCENES, _build_title, _generate_topics_with_llm, _naturalize_topic_name, _procedural_topic_records, build_daily_packages, build_template_package, load_series_state, maybe_polish_with_llm, persist_package, resolve_target_date, topic_for_post_index
 
 LEGACY_SCENE_TITLE = "\u8ab0\u304b\u306b\u8a00\u3044\u305f\u304f\u306a\u308b\u7d50\u8ad6"
 
@@ -38,7 +38,7 @@ class PlannerTests(unittest.TestCase):
             explicit_format="が好きな人に見せる態度",
         )
         self.assertEqual(package.mbti_type, "ENFP")
-        self.assertEqual(len(package.scenes), 5)
+        self.assertTrue(MIN_CONTENT_SCENES <= len(package.scenes) <= MAX_CONTENT_SCENES)
         self.assertIn("#ENFP", package.hashtags)
         self.assertIn("#好きな人", package.hashtags)
         self.assertEqual(package.title, "ENFPが好きな人に見せる態度")
@@ -462,7 +462,9 @@ class PlannerTests(unittest.TestCase):
         with patch("mbti_tiktok_bot.planner.requests.post", side_effect=fake_post):
             polished = maybe_polish_with_llm(package, config)
 
-        self.assertEqual(len(polished.scenes), 5)
+        # The model returned one scene; a count that does not match the one
+        # decided for this topic is discarded so the positional lock holds.
+        self.assertEqual(len(polished.scenes), len(package.scenes))
         self.assertIn("ENFJが頼らせ始める", [scene.title for scene in polished.scenes])
         self.assertNotIn("他タイプにも使える汎用コピー", [scene.body for scene in polished.scenes])
 

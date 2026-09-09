@@ -8,12 +8,13 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
 
+from mbti_tiktok_bot.catalog import MBTI_POST_ORDER
 from mbti_tiktok_bot.config import load_config
 from mbti_tiktok_bot.fonts import load_font
 from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene
 from mbti_tiktok_bot.pipeline import _build_render_package
 from mbti_tiktok_bot.planner import build_template_package, resolve_target_date
-from mbti_tiktok_bot.visuals import _avoid_title_panel_box, _character_box, _draw_pulse_thumbnail_overlay, _draw_thumbnail_overlay, _fit_text_block, _fit_wrapped_text, _layout_profile, _motif_key, _render_character_overlay, _scene_style_index, _scene_style_key, _scene_top_clearance, _scene_top_shift, _slam_body_layout, _slam_body_max_height, _slam_label_box, _stack_top, _thumbnail_layout, _title_layout, _topic_visual_key, _visual_identity, _wrap_text, generate_scene_assets
+from mbti_tiktok_bot.visuals import SCENE_STYLE_CYCLE_LENGTH, _avoid_title_panel_box, _character_box, _draw_pulse_thumbnail_overlay, _draw_thumbnail_overlay, _fit_text_block, _fit_wrapped_text, _layout_profile, _motif_key, _render_character_overlay, _scene_style_index, _scene_style_key, _scene_top_clearance, _scene_top_shift, _slam_body_layout, _slam_body_max_height, _slam_label_box, _stack_top, _thumbnail_layout, _title_layout, _topic_visual_key, _visual_identity, _wrap_text, generate_scene_assets
 
 
 def _boxes_overlap(left: tuple[int, int, int, int], right: tuple[int, int, int, int]) -> bool:
@@ -120,7 +121,7 @@ class MediaTests(unittest.TestCase):
         first_content_style = _scene_style_index(render_package, 1)
         second_content_style = _scene_style_index(render_package, 2)
 
-        self.assertEqual(second_content_style, (first_content_style + 1) % 5)
+        self.assertEqual(second_content_style, (first_content_style + 1) % SCENE_STYLE_CYCLE_LENGTH)
 
     def test_scene_style_key_is_consistent_for_chat_topic_across_mbti_types(self) -> None:
         config = load_config(Path.cwd())
@@ -262,6 +263,27 @@ class MediaTests(unittest.TestCase):
         self.assertEqual(_title_layout(primary_package)["panel"], _title_layout(alternate_package)["panel"])
         self.assertEqual(_thumbnail_layout(primary_package)["card"], _thumbnail_layout(alternate_package)["card"])
         self.assertEqual(_character_box(primary_package), _character_box(alternate_package))
+
+    def test_layout_profile_is_identical_across_all_sixteen_types(self) -> None:
+        # Two types agreeing is not enough. The density score used to be built
+        # from per-type copy lengths, so a topic could split its series across
+        # two layouts depending on which types happened to write longer.
+        config = load_config(Path.cwd())
+        for topic in ("の攻略で効く接し方", "の回復が早い休み方", "が脈ありの時にする行動"):
+            with self.subTest(topic=topic):
+                profiles = {
+                    _layout_profile(
+                        build_template_package(
+                            resolve_target_date("2026-04-22"),
+                            config,
+                            explicit_mbti=mbti,
+                            explicit_format=topic,
+                            global_post_index=index,
+                        )
+                    )
+                    for index, mbti in enumerate(MBTI_POST_ORDER)
+                }
+                self.assertEqual(len(profiles), 1)
 
     def test_thumbnail_and_second_slide_use_different_material_compositions(self) -> None:
         config = load_config(Path.cwd())

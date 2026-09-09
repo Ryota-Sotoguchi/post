@@ -1205,6 +1205,62 @@ def _build_focus_scenes(
     return focus_builders.get(topic_key, [])
 
 
+MIN_CONTENT_SCENES = 5
+MAX_CONTENT_SCENES = 8
+
+
+def _scene_count_for_topic(topic: dict[str, str]) -> int:
+    """How many body slides this topic gets, fixed per topic.
+
+    Decided from the topic name so all 16 types of a series run the same
+    length, which is the same rule the visual seed follows.
+    """
+    blueprint = str(topic.get("blueprint") or topic.get("key") or "")
+    if blueprint == "trust_sign":
+        # TRUST_SIGN_SCENE_COPY is hand-authored per type. Extending it means
+        # writing 48 more Japanese lines, which is a content job, not this one.
+        return MIN_CONTENT_SCENES
+    digest = hashlib.sha256(str(topic.get("name", "")).encode("utf-8")).digest()
+    return MIN_CONTENT_SCENES + digest[0] % (MAX_CONTENT_SCENES - MIN_CONTENT_SCENES + 1)
+
+
+def _build_extension_scenes(
+    mbti_type: str,
+    *,
+    archetype: str,
+    love: str,
+    stress: str,
+    line_style: str,
+    strategy: str,
+    friend: str,
+    traits: str,
+) -> list[Scene]:
+    """Extra body slides for topics that run longer than the template five.
+
+    Built from the same per-type material the templates draw on, at angles the
+    templates do not cover, so a longer carousel needs no new per-type copy.
+    """
+    return [
+        Scene("よくある誤解", f"{archetype}型は淡白に見られやすいが、実際は {traits} が出ているだけのことが多い。"),
+        Scene("相性がいい距離感", f"{strategy}。詰めるより、相手のペースに合わせた方が結果的に近づける。"),
+        Scene("今日から試せる一言", f"{line_style}。返事の速さより、内容に触れて返すと {mbti_type} には届きやすい。"),
+    ]
+
+
+def _sized_scenes(scenes: list[Scene], count: int, extensions: list[Scene]) -> list[Scene]:
+    """Grow or trim the template scenes to count.
+
+    Extras go in before the last scene, never after it. Every builder writes
+    its fifth entry as the summary, and _scene_style_key renders the last body
+    slide as the wrapup; appending would put a detail in the wrapup slot and a
+    summary in the middle.
+    """
+    if count <= len(scenes):
+        return scenes[:count]
+    extra = extensions[: count - len(scenes)]
+    return scenes[:-1] + extra + scenes[-1:]
+
+
 def _build_scenes(mbti_type: str, topic: dict[str, str], details: dict[str, object]) -> list[Scene]:
     archetype = str(details["archetype"])
     love = str(details["love"])
@@ -1215,6 +1271,17 @@ def _build_scenes(mbti_type: str, topic: dict[str, str], details: dict[str, obje
     traits = " / ".join(details["traits"])
     topic_key = str(topic.get("blueprint") or topic["key"])
     focus = _topic_focus(topic)
+    count = _scene_count_for_topic(topic)
+    extensions = _build_extension_scenes(
+        mbti_type,
+        archetype=archetype,
+        love=love,
+        stress=stress,
+        line_style=line_style,
+        strategy=strategy,
+        friend=friend,
+        traits=traits,
+    )
 
     if focus:
         focus_scenes = _build_focus_scenes(
@@ -1230,10 +1297,10 @@ def _build_scenes(mbti_type: str, topic: dict[str, str], details: dict[str, obje
             traits=traits,
         )
         if focus_scenes:
-            return focus_scenes
+            return _sized_scenes(focus_scenes, count, extensions)
 
     if topic_key == "trust_sign":
-        return _build_trust_sign_scenes(mbti_type)
+        return _sized_scenes(_build_trust_sign_scenes(mbti_type), count, extensions)
 
     format_builders: dict[str, list[Scene]] = {
         "like_attitude": [
@@ -1301,7 +1368,7 @@ def _build_scenes(mbti_type: str, topic: dict[str, str], details: dict[str, obje
         ],
     }
 
-    return format_builders[topic_key]
+    return _sized_scenes(format_builders[topic_key], count, extensions)
 
 
 def _normalize_legacy_copy(text: str) -> str:
@@ -1572,6 +1639,10 @@ def maybe_polish_with_llm(content_package: ContentPackage, config: AppConfig) ->
                     "収益化条件を満たすアカウントを育てる前提で、保存・シェア・完読を取りやすい密度にしてください。"
                     "MBTI の断定は避けつつ、あるある表現にしてください。"
                     "タイトルは維持しつつ、フックは強めにしてください。"
+                    # The slide count is decided per topic before this call, so
+                    # the model rewrites the scenes it is given rather than
+                    # inventing a different number of them.
+                    f"scenes は必ず {len(content_package.scenes)} 個で返してください。増減させないでください。"
                     "JSON で返してください。"
                     + json.dumps(content_package.to_dict(), ensure_ascii=False)
                 ),
@@ -1590,6 +1661,14 @@ def maybe_polish_with_llm(content_package: ContentPackage, config: AppConfig) ->
         return content_package
 
     scenes = [Scene(**scene) for scene in data.get("scenes", [])] or content_package.scenes
+    if len(scenes) != len(content_package.scenes):
+        # A different count would break the positional lock in
+        # _lock_distinct_scene_copy, which is what keeps the copy type-specific.
+        print(
+            f"LLM returned {len(scenes)} scenes instead of {len(content_package.scenes)}; "
+            "keeping the template scenes"
+        )
+        scenes = content_package.scenes
     polished_package = _normalize_content_package(ContentPackage(
         post_date=data.get("post_date", content_package.post_date),
         mbti_type=data.get("mbti_type", content_package.mbti_type),

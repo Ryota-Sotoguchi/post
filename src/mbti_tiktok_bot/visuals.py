@@ -534,9 +534,23 @@ def _is_pulse_layout(content_package: ContentPackage) -> bool:
     return _motif_key(content_package) == "pulse"
 
 
+# Long enough for the most scenes a topic can produce. wrapup is absent from
+# the interior: _scene_style_key already forces it on the last content slide,
+# and with more than five scenes a five-entry cycle put a second one mid
+# carousel.
+SCENE_STYLE_CYCLES = {
+    "chat": ["chat", "bottom_board", "chat", "spotlight", "bottom_board", "chat", "slam", "spotlight"],
+    "grid": ["slam", "spotlight", "bottom_board", "slam", "spotlight", "bottom_board", "slam", "chat"],
+    "pulse": ["spotlight", "bottom_board", "slam", "spotlight", "bottom_board", "slam", "spotlight", "chat"],
+    "orbit": ["spotlight", "chat", "bottom_board", "slam", "chat", "spotlight", "bottom_board", "slam"],
+    "ribbon": ["spotlight", "bottom_board", "chat", "slam", "spotlight", "chat", "bottom_board", "slam"],
+}
+SCENE_STYLE_CYCLE_LENGTH = 8
+
+
 def _scene_style_index(content_package: ContentPackage, scene_index: int) -> int:
     content_scene_index = _content_scene_index(content_package, scene_index)
-    return (content_scene_index + _style_offset(content_package)) % 5
+    return (content_scene_index + _style_offset(content_package)) % SCENE_STYLE_CYCLE_LENGTH
 
 
 def _scene_style_key(content_package: ContentPackage, scene: Scene, scene_index: int) -> str:
@@ -548,15 +562,8 @@ def _scene_style_key(content_package: ContentPackage, scene: Scene, scene_index:
     if content_scene_index == scene_total - 1:
         return "wrapup"
 
-    cycles = {
-        "chat": ["chat", "bottom_board", "chat", "spotlight", "wrapup"],
-        "grid": ["slam", "spotlight", "bottom_board", "slam", "wrapup"],
-        "pulse": ["spotlight", "bottom_board", "slam", "spotlight", "wrapup"],
-        "orbit": ["spotlight", "chat", "bottom_board", "slam", "wrapup"],
-        "ribbon": ["spotlight", "bottom_board", "chat", "slam", "wrapup"],
-    }
-    cycle = cycles[_motif_key(content_package)]
-    return cycle[_scene_style_index(content_package, scene_index)]
+    cycle = SCENE_STYLE_CYCLES[_motif_key(content_package)]
+    return cycle[_scene_style_index(content_package, scene_index) % len(cycle)]
 
 
 def _offset_box(box: tuple[int, int, int, int], dx: int = 0, dy: int = 0) -> tuple[int, int, int, int]:
@@ -674,11 +681,16 @@ def _apply_layout_variant(profile: LayoutProfile, content_package: ContentPackag
 
 
 def _layout_density_score(content_package: ContentPackage) -> int:
-    scene_bodies = [scene.body for scene in content_package.scenes[:5]]
-    average_body = sum(len(body.replace("\n", "")) for body in scene_bodies) // max(len(scene_bodies), 1)
+    """How much room this topic's copy wants.
+
+    Every input has to be fixed by the topic, because all 16 types of a series
+    must lay out identically. Scoring the per-type bodies broke that: the
+    lengths differ by a character or two and the panel moved with them, which
+    quantising only hid until a topic landed on a step boundary.
+    """
     title_weight = len(content_package.title.replace("\n", ""))
-    hook_weight = len(content_package.hook.replace("\n", ""))
-    return title_weight + hook_weight + average_body
+    series_weight = len(content_package.series_name.replace("\n", ""))
+    return title_weight * 2 + series_weight * 2 + _content_scene_total(content_package) * 8
 
 
 def _base_layout_profile(content_package: ContentPackage) -> LayoutProfile:
