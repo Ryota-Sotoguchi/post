@@ -1,0 +1,7 @@
+# The repo had a mix of CRLF and LF, which turned a three-line edit into a
+# whole-file diff. Everything runs in WSL now, so LF everywhere.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
