@@ -7,7 +7,7 @@ from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
+from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
 from mbti_tiktok_bot.catalog import GROUP_PALETTES
 from mbti_tiktok_bot.config import AppConfig
@@ -198,15 +198,30 @@ def _hex_to_rgba(hex_color: str, alpha: int = 255) -> tuple[int, int, int, int]:
     )
 
 
+# Eight bits over 1920 rows is not enough for a slow gradient: adjacent rows
+# round to the same value for up to eighteen rows at a time, and the flat bands
+# are visible. A little luminance noise breaks them up, and the downsample
+# averages it back towards invisible.
+GRADIENT_DITHER_SIGMA = 4
+
+
 def _make_gradient(width: int, height: int, start_hex: str, end_hex: str) -> Image.Image:
     start = tuple(int(start_hex[i : i + 2], 16) for i in (1, 3, 5))
     end = tuple(int(end_hex[i : i + 2], 16) for i in (1, 3, 5))
-    image = Image.new("RGB", (width, height), start)
-    draw = ImageDraw.Draw(image)
-    for y in range(height):
-        ratio = y / max(height - 1, 1)
-        color = tuple(int(start[i] + (end[i] - start[i]) * ratio) for i in range(3))
-        draw.line([(0, y), (width, y)], fill=color)
+    # One exact column stretched across, rather than a draw.line per row.
+    span = max(height - 1, 1)
+    strip = Image.new("RGB", (1, height))
+    strip.putdata([
+        tuple(int(start[channel] + (end[channel] - start[channel]) * y / span) for channel in range(3))
+        for y in range(height)
+    ])
+    image = strip.resize((width, height), Image.Resampling.NEAREST)
+
+    if GRADIENT_DITHER_SIGMA:
+        noise = Image.effect_noise((width, height), GRADIENT_DITHER_SIGMA)
+        # One channel for all three, so this dithers luminance without
+        # speckling the hue.
+        image = ImageChops.add(image, Image.merge("RGB", (noise, noise, noise)), scale=1, offset=-128)
     return image.convert("RGBA")
 
 
