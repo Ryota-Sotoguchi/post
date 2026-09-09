@@ -855,75 +855,6 @@ def _draw_luxury_divider(
     draw.ellipse((center - 5, y - 5, center + 5, y + 5), fill=(255, 255, 255, 230))
 
 
-def _draw_title_block(
-    image: Image.Image,
-    draw: ImageDraw.ImageDraw,
-    content_package: ContentPackage,
-    title_font,
-    hook_font,
-    label_font,
-) -> None:
-    layout = _title_layout(content_package)
-    panel = layout["panel"]
-    label_left = layout["label_left"]
-    label_right = layout["label_right"]
-    content_region = layout["content_region"]
-    hook_inset_x, hook_inset_y = layout["hook_inset"]
-
-    _draw_shadowed_round_box(image, panel, 52, (10, 17, 41, 176), 145)
-    _draw_label(
-        draw,
-        label_left,
-        f"{content_package.mbti_type} / {content_package.archetype_name}",
-        label_font,
-        (255, 255, 255, 44),
-        "white",
-    )
-    _draw_label(
-        draw,
-        label_right,
-        f"{content_package.series_post_number}/{content_package.series_total_posts}",
-        label_font,
-        (255, 255, 255, 44),
-        "white",
-    )
-    title, fitted_title_font, title_spacing, _, title_height = _fit_text_block(
-        draw,
-        content_package.title,
-        content_region[2] - content_region[0] - 24,
-        max((content_region[3] - content_region[1]) // 2, 120),
-        78,
-        bold=True,
-        spacing=10,
-        min_size=58,
-        min_spacing=6,
-    )
-    hook, fitted_hook_font, hook_spacing, _, hook_height = _fit_text_block(
-        draw,
-        content_package.hook,
-        content_region[2] - content_region[0] - (hook_inset_x * 2),
-        88,
-        42,
-        bold=True,
-        spacing=6,
-        min_size=28,
-        min_spacing=2,
-    )
-    hook_box_height = max(68, hook_height + 34)
-    content_top = _stack_top(content_region[1], content_region[3], [title_height, hook_box_height], [28])
-    title_y = content_top
-    hook_box = (
-        content_region[0],
-        title_y + title_height + 28,
-        content_region[2],
-        title_y + title_height + 28 + hook_box_height,
-    )
-    draw.multiline_text((content_region[0], title_y), title, font=fitted_title_font, fill="white", spacing=title_spacing)
-    draw.rounded_rectangle(hook_box, radius=30, fill=(255, 255, 255, 56))
-    hook_y = hook_box[1] + max((hook_box_height - hook_height) // 2, 0) - 2
-    draw.multiline_text((hook_box[0] + hook_inset_x, hook_y + hook_inset_y), hook, font=fitted_hook_font, fill="white", spacing=hook_spacing)
-
-
 def _has_thumbnail_scene(content_package: ContentPackage) -> bool:
     return bool(content_package.scenes) and content_package.scenes[0].title == content_package.title and content_package.scenes[0].body == content_package.hook
 
@@ -1688,7 +1619,7 @@ def _draw_luxury_canvas_details(
     _draw_luxury_divider(draw, 94, width - 94, height - 112, accent, light)
 
 
-def _render_background_layer(content_package: ContentPackage, config: AppConfig, destination: Path) -> Path:
+def _build_background_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
     width = config.video_width
     height = config.video_height
     background, accent, light = GROUP_PALETTES[content_package.group_name]
@@ -1748,68 +1679,48 @@ def _render_background_layer(content_package: ContentPackage, config: AppConfig,
     )
     image.alpha_composite(luxury_layer)
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination)
-    return destination
+    return image
 
 
-def _render_text_overlay(
+def _build_text_layer(
     content_package: ContentPackage,
     scene: Scene,
     scene_index: int,
     config: AppConfig,
-    destination: Path,
-) -> Path:
+) -> Image.Image:
     width = config.video_width
     height = config.video_height
     background, accent, light = GROUP_PALETTES[content_package.group_name]
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     draw = ImageDraw.Draw(image)
 
+    # Every title and body font is resolved inside _fit_text_block, which picks
+    # a size to fit its box. Only these three are drawn at a fixed size.
     fonts = {
-        "title": _load_font(78, bold=True),
-        "hook": _load_font(42, bold=True),
-        "thumbnail_title": _load_font(92, bold=True),
-        "thumbnail_hook": _load_font(48, bold=True),
-        "label": _load_font(34, bold=True),
-        "scene_title": _load_font(52, bold=True),
-        "scene_title_large": _load_font(60, bold=True),
-        "slam": _load_font(84, bold=True),
-        "body": _load_font(52),
-        "body_small": _load_font(46),
         "scene_tag": _load_font(32, bold=True),
         "detail": _load_font(30, bold=True),
-        "detail_large": _load_font(38, bold=True),
-        "footer": _load_font(30, bold=True),
         "count": _load_font(40, bold=True),
     }
 
     if _is_pulse_layout(content_package):
         _draw_pulse_text_overlay(image, draw, content_package, scene, scene_index, background, accent, light, fonts)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        image.save(destination)
-        return destination
+        return image
 
     if _is_thumbnail_scene(content_package, scene, scene_index):
         _draw_thumbnail_overlay(image, draw, content_package, background, accent, light, fonts)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        image.save(destination)
-        return destination
+        return image
 
     _draw_content_header(draw, content_package, background, accent, light, fonts)
     _draw_scene_content(image, draw, scene, scene_index, content_package, background, accent, light, fonts)
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination)
-    return destination
+    return image
 
 
-def _render_character_overlay(
+def _build_character_layer(
     content_package: ContentPackage,
     config: AppConfig,
-    destination: Path,
     scene_index: int = 0,
-) -> Path:
+) -> Image.Image:
     width = config.video_width
     height = config.video_height
     _, accent, light = GROUP_PALETTES[content_package.group_name]
@@ -1929,12 +1840,10 @@ def _render_character_overlay(
             width=5,
         )
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination)
-    return destination
+    return image
 
 
-def _render_accent_overlay(content_package: ContentPackage, config: AppConfig, destination: Path) -> Path:
+def _build_accent_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
     width = config.video_width
     height = config.video_height
     _, accent, light = GROUP_PALETTES[content_package.group_name]
@@ -1967,17 +1876,14 @@ def _render_accent_overlay(content_package: ContentPackage, config: AppConfig, d
         draw.polygon([(860, 90), (990, 90), (880, 340), (760, 340)], fill=_hex_to_rgba(accent, 28))
         draw.polygon([(790, 1420), (980, 1420), (930, 1760), (740, 1760)], fill=_hex_to_rgba(light, 24))
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    image.save(destination)
-    return destination
+    return image
 
 
-def _render_scene_accent_overlay(
+def _build_scene_accent_layer(
     content_package: ContentPackage,
     scene_index: int,
     config: AppConfig,
-    destination: Path,
-) -> Path:
+) -> Image.Image:
     width = config.video_width
     height = config.video_height
     background, accent, light = GROUP_PALETTES[content_package.group_name]
@@ -2015,34 +1921,37 @@ def _render_scene_accent_overlay(
 
     glow_layer = image.filter(ImageFilter.GaussianBlur(14))
     image.alpha_composite(glow_layer)
-    _render_accent_overlay(content_package, config, destination)
-    with Image.open(destination) as opened_overlay:
-        base_overlay = opened_overlay.convert("RGBA")
+    base_overlay = _build_accent_layer(content_package, config)
     base_overlay.alpha_composite(image)
+    return base_overlay
+
+
+def _compose_scene(layers: list[Image.Image], destination: Path) -> Path:
+    """Flatten the scene's layers onto the background and write the slide."""
+    canvas = layers[0]
+    for layer in layers[1:]:
+        canvas.alpha_composite(layer)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    base_overlay.save(destination)
+    canvas.convert("RGB").save(destination)
     return destination
 
 
-def _compose_layers(layer_paths: list[Path], destination: Path) -> Path:
-    # Filter to only existing paths
-    existing_paths = [p for p in layer_paths if p and p.exists()]
-    if not existing_paths:
-        # Create a blank transparent image if no layers exist
-        background = Image.new("RGBA", (1920, 1080), (0, 0, 0, 0))
-    else:
-        with Image.open(existing_paths[0]) as opened_background:
-            background = opened_background.convert("RGBA")
-    for layer_path in existing_paths[1:]:
-        try:
-            with Image.open(layer_path) as opened_overlay:
-                overlay = opened_overlay.convert("RGBA")
-            background.alpha_composite(overlay)
-        except Exception:
-            # Skip layers that fail to load
-            continue
+def _render_character_overlay(
+    content_package: ContentPackage,
+    config: AppConfig,
+    destination: Path,
+    scene_index: int = 0,
+) -> Path:
+    """Write the character layer on its own. Kept for tests and debugging."""
+    image = _build_character_layer(content_package, config, scene_index=scene_index)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    background.convert("RGB").save(destination)
+    image.save(destination)
+    return destination
+
+
+def _save_layer(image: Image.Image, destination: Path) -> Path:
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    image.save(destination)
     return destination
 
 
@@ -2069,29 +1978,40 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
             except Exception:
                 pass  # If removal fails completely, continue anyway
     shared_dir = render_dir / "_shared"
-    shared_dir.mkdir(parents=True, exist_ok=True)
+    if config.keep_render_layers:
+        shared_dir.mkdir(parents=True, exist_ok=True)
     (slides_dir.parent / "visual_identity.json").write_text(
         json.dumps(_visual_identity(content_package), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    background_path = _render_background_layer(content_package, config, shared_dir / "background.png")
+    # The layers only reach disk when someone asked to look at them. Writing
+    # four PNGs per slide and deleting them again cost more than the slides.
+    keep = config.keep_render_layers
+    background = _build_background_layer(content_package, config)
+    background_path = shared_dir / "background.png"
+    if keep:
+        _save_layer(background, background_path)
 
     assets: list[SceneRenderAssets] = []
     for index, scene in enumerate(content_package.scenes):
-        character_path = _render_character_overlay(
-            content_package,
-            config,
-            render_dir / f"character_{index + 1:02d}.png",
-            scene_index=index,
+        character = _build_character_layer(content_package, config, scene_index=index)
+        accent = _build_scene_accent_layer(content_package, index, config)
+        text = _build_text_layer(content_package, scene, index, config)
+
+        character_path = render_dir / f"character_{index + 1:02d}.png"
+        accent_path = render_dir / f"accent_{index + 1:02d}.png"
+        text_path = render_dir / f"text_{index + 1:02d}.png"
+        if keep:
+            _save_layer(character, character_path)
+            _save_layer(accent, accent_path)
+            _save_layer(text, text_path)
+
+        # copy() because alpha_composite mutates, and the background is shared
+        # by every scene.
+        _compose_scene(
+            [background.copy(), accent, character, text],
+            slides_dir / f"slide_{index + 1:02d}.png",
         )
-        accent_path = _render_scene_accent_overlay(
-            content_package,
-            index,
-            config,
-            render_dir / f"accent_{index + 1:02d}.png",
-        )
-        text_path = _render_text_overlay(content_package, scene, index, config, render_dir / f"text_{index + 1:02d}.png")
-        _compose_layers([background_path, accent_path, character_path, text_path], slides_dir / f"slide_{index + 1:02d}.png")
         assets.append(
             SceneRenderAssets(
                 background_path=background_path,
