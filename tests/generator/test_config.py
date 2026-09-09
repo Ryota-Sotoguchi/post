@@ -71,6 +71,7 @@ class ConfigTests(unittest.TestCase):
                 "output_dir",
                 "assets_dir",
                 "official_images_dir",
+                "editorial_photos_dir",
                 "state_dir",
                 "openai_api_key",
                 "openai_model",

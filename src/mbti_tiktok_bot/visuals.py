@@ -517,7 +517,23 @@ def _visual_identity(content_package: ContentPackage) -> dict[str, object]:
     }
 
 
-def _motif_key(content_package: ContentPackage) -> str:
+ALL_MOTIFS = frozenset({"chat", "grid", "pulse", "orbit", "ribbon", "editorial"})
+ILLUSTRATED_MOTIFS = ALL_MOTIFS - {"editorial"}
+# Roughly one topic in four, so the feed alternates rather than turning over
+# to photography. The pool is four photographs; until it grows, a higher share
+# would repeat them visibly.
+EDITORIAL_SHARE = 4
+
+
+def _motif_key(content_package: ContentPackage, available: frozenset[str] = ILLUSTRATED_MOTIFS) -> str:
+    if "editorial" in available and _seed_choice(
+        _visual_seed(content_package, include_mbti=False), "editorial", EDITORIAL_SHARE
+    ) == 0:
+        # Assigned by seed rather than by keyword: the editorial look is a tone
+        # choice, not a subject one, and matching Japanese substrings would fire
+        # it on exactly the topics that already have a motif.
+        return "editorial"
+
     label = f"{content_package.format_name} {content_package.theme}"
     if any(token in label for token in ("LINE", "返信", "連絡", "メッセージ")):
         return "chat"
@@ -1888,6 +1904,108 @@ def _draw_luxury_canvas_details(
         _draw_luxury_divider(draw, 94, width - 94, height - 112, accent, light)
 
 
+# --- editorial motif -------------------------------------------------------
+# Ported from scripts/create_editorial_*.py, which produced markedly better
+# looking slides than the illustrated path but were hand-edited one-offs with
+# their own naive character-by-character wrapper. The copy here goes through
+# _fit_text_block, so it gets the kinsoku handling in typeset.py; the scripts
+# split 雑にしない across two lines.
+EDITORIAL_GOLD = (226, 196, 134)
+EDITORIAL_CREAM = (245, 230, 196, 255)
+EDITORIAL_GLASS = (8, 10, 13, 196)
+EDITORIAL_PHOTO_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp"}
+
+
+@lru_cache(maxsize=8)
+def _editorial_photos(photos_dir: str) -> tuple[Path, ...]:
+    root = Path(photos_dir)
+    if not root.is_dir():
+        return ()
+    return tuple(sorted(p for p in root.iterdir() if p.suffix.lower() in EDITORIAL_PHOTO_SUFFIXES))
+
+
+def _editorial_photo_plan(photo_count: int, seed: int, slide_count: int) -> list[dict[str, object]]:
+    """One photo per slide, plus a treatment that disguises reuse.
+
+    Written to work with any number of photos. With fewer photos than slides
+    the same picture has to come back, so each appearance gets a different
+    crop and zoom, and the same one never lands on two slides in a row.
+    """
+    if photo_count <= 0:
+        return []
+    order = [(_seed_choice(seed, "photo", photo_count) + index) % photo_count for index in range(slide_count)]
+    if photo_count > 1:
+        for index in range(1, len(order)):
+            if order[index] == order[index - 1]:
+                order[index] = (order[index] + 1) % photo_count
+    return [
+        {
+            "index": photo_index,
+            "centering": (0.5 + (_seed_choice(seed, f"crop{position}", 5) - 2) * 0.08, 0.5),
+            "zoom": 1.0 + _seed_choice(seed, f"zoom{position}", 4) * 0.06,
+            "align": "right" if position % 2 else "left",
+        }
+        for position, photo_index in enumerate(order)
+    ]
+
+
+def _fit_cover(source: Image.Image, size: tuple[int, int], centering: tuple[float, float], zoom: float) -> Image.Image:
+    target_width, target_height = size
+    scaled = (round(target_width * zoom), round(target_height * zoom))
+    covered = ImageOps.fit(source, scaled, method=Image.Resampling.LANCZOS, centering=centering)
+    left = (scaled[0] - target_width) // 2
+    top = (scaled[1] - target_height) // 2
+    return covered.crop((left, top, left + target_width, top + target_height))
+
+
+def _editorial_scrim(canvas: ScaledDraw, align: str) -> Image.Image:
+    """Darken the frame so cream text holds against any photograph.
+
+    Built from one-pixel strips rather than a per-row draw.line loop; at render
+    scale that loop ran 3840 times per slide.
+    """
+    width, height = canvas.image.size
+    vertical = Image.new("L", (1, height))
+    vertical.putdata([
+        min(int(40 + 205 * max(0.0, (y / height - 0.18) / 0.82) ** 1.55), 230)
+        for y in range(height)
+    ])
+    horizontal = Image.new("L", (width, 1))
+    if align == "right":
+        horizontal.putdata([int(130 * max(0.0, 1 - x / width) ** 1.8) for x in range(width)])
+    else:
+        horizontal.putdata([int(118 * max(0.0, x / width) ** 1.8) for x in range(width)])
+
+    alpha = ImageChops.lighter(
+        vertical.resize((width, height), Image.Resampling.BILINEAR),
+        horizontal.resize((width, height), Image.Resampling.BILINEAR),
+    )
+    scrim = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    scrim.putalpha(alpha)
+    return scrim
+
+
+def _draw_editorial_pill(canvas: ScaledDraw, xy: tuple[int, int], text: str, font) -> None:
+    x, y = xy
+    box = _measure_draw().textbbox((0, 0), text, font=font)
+    width = box[2] - box[0] + 48
+    height = box[3] - box[1] + 26
+    canvas.rounded_rectangle(
+        (x, y, x + width, y + height),
+        radius=height // 2,
+        fill=(14, 18, 22, 178),
+        outline=(229, 202, 150, 210),
+        width=2,
+    )
+    canvas.text((x + 24, y + 11), text, font=font, fill=EDITORIAL_CREAM)
+
+
+def _draw_editorial_shadow_text(canvas: ScaledDraw, xy: tuple[int, int], text: str, font, fill, spacing: int) -> None:
+    x, y = xy
+    canvas.multiline_text((x + 4, y + 6), text, font=font, fill=(0, 0, 0, 150), spacing=spacing)
+    canvas.multiline_text((x, y), text, font=font, fill=fill, spacing=spacing)
+
+
 def _build_background_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
     width = config.video_width
     height = config.video_height
@@ -1986,6 +2104,76 @@ def _build_text_layer(
     _draw_content_header(draw, content_package, background, accent, light, fonts)
     _draw_scene_content(image, draw, scene, scene_index, content_package, background, accent, light, fonts)
 
+    return image
+
+
+def _build_editorial_text_layer(
+    content_package: ContentPackage,
+    scene: Scene,
+    scene_index: int,
+    config: AppConfig,
+    align: str,
+) -> Image.Image:
+    width = config.video_width
+    height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
+    image = Image.new("RGBA", device, (0, 0, 0, 0))
+    canvas = ScaledDraw(image)
+    canvas.image.alpha_composite(_editorial_scrim(canvas, align))
+
+    is_thumbnail = _is_thumbnail_scene(content_package, scene, scene_index)
+    content_index = _content_scene_index(content_package, scene_index)
+    total = _content_scene_total(content_package)
+    pill_font = _load_font(32, bold=True)
+
+    if is_thumbnail:
+        eyebrow = f"{content_package.mbti_type} / {content_package.archetype_name}"
+    elif _is_closer_scene(content_package, scene, scene_index):
+        eyebrow = f"{content_package.mbti_type} / LAST"
+    else:
+        eyebrow = f"{content_package.mbti_type} / POINT {content_index + 1:02d}"
+    _draw_editorial_pill(canvas, (96, 96), eyebrow, pill_font)
+
+    title_text, title_font, title_spacing, _, title_height = _fit_text_block(
+        canvas,
+        scene.title,
+        888,
+        330 if is_thumbnail else 250,
+        104 if is_thumbnail else 76,
+        bold=True,
+        spacing=18,
+        min_size=52 if is_thumbnail else 44,
+        min_spacing=10,
+    )
+    body_text, body_font, body_spacing, _, body_height = _fit_text_block(
+        canvas,
+        scene.body,
+        832,
+        224,
+        46,
+        spacing=16,
+        min_size=32,
+        min_spacing=8,
+    )
+
+    # Stacked from the bottom so the footer rule always clears the panel. Laying
+    # the panel out downwards from a fixed top ran it over the footer whenever
+    # the body needed a fifth line.
+    footer_y = height - 104
+    panel_bottom = footer_y - 52
+    panel_top = panel_bottom - body_height - 84
+    panel = (78, panel_top, width - 78, panel_bottom)
+    canvas.rounded_rectangle(panel, radius=32, fill=EDITORIAL_GLASS, outline=(255, 255, 255, 46), width=2)
+    canvas.rounded_rectangle((panel[0], panel[1], panel[2], panel[1] + 6), radius=3, fill=(*EDITORIAL_GOLD, 210))
+    canvas.multiline_text((panel[0] + 40, panel[1] + 40), body_text, font=body_font, fill=EDITORIAL_CREAM, spacing=body_spacing)
+
+    title_y = panel_top - title_height - 44
+    _draw_editorial_shadow_text(canvas, (96, title_y), title_text, title_font, (255, 255, 255, 255), title_spacing)
+
+    footer = f"{content_index + 1:02d} / {total:02d}" if not is_thumbnail else "SWIPE →"
+    footer_width = _measure_draw().textbbox((0, 0), footer, font=pill_font)[2]
+    canvas.line((96, footer_y + 16, width - 132 - footer_width, footer_y + 16), fill=(*EDITORIAL_GOLD, 150), width=2)
+    canvas.text((width - 96 - footer_width, footer_y), footer, font=pill_font, fill=EDITORIAL_CREAM)
     return image
 
 
@@ -2223,7 +2411,12 @@ def _build_scene_accent_layer(
     return base_overlay
 
 
-def _compose_scene(layers: list[Image.Image], size: tuple[int, int], destination: Path) -> Path:
+def _compose_scene(
+    layers: list[Image.Image],
+    size: tuple[int, int],
+    destination: Path,
+    base: Image.Image | None = None,
+) -> Path:
     """Flatten the scene's layers onto the background and write the slide.
 
     The layers are composited at render scale and downsampled once, here.
@@ -2235,6 +2428,14 @@ def _compose_scene(layers: list[Image.Image], size: tuple[int, int], destination
         canvas.alpha_composite(layer)
     if canvas.size != size:
         canvas = canvas.resize(size, Image.Resampling.LANCZOS)
+    if base is not None:
+        # The editorial photographs are 941x1672, smaller than the canvas, so
+        # fit_cover already enlarges them. Compositing them at render scale
+        # would enlarge them 2.3x instead of 1.15x for no gain, so the photo
+        # goes underneath after the overlay has come back down to size.
+        composed = base.convert("RGBA")
+        composed.alpha_composite(canvas)
+        canvas = composed
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(destination)
     return destination
@@ -2291,16 +2492,40 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
     # The layers only reach disk when someone asked to look at them. Writing
     # four PNGs per slide and deleting them again cost more than the slides.
     keep = config.keep_render_layers
-    background = _build_background_layer(content_package, config)
+    photos = _editorial_photos(str(config.editorial_photos_dir))
+    available = ALL_MOTIFS if photos else ILLUSTRATED_MOTIFS
+    editorial = _motif_key(content_package, available=available) == "editorial"
+    photo_plan = (
+        _editorial_photo_plan(len(photos), _visual_seed(content_package), len(content_package.scenes))
+        if editorial
+        else []
+    )
+
     background_path = shared_dir / "background.png"
-    if keep:
+    background = None if editorial else _build_background_layer(content_package, config)
+    if keep and background is not None:
         _save_layer(background, background_path)
 
     assets: list[SceneRenderAssets] = []
     for index, scene in enumerate(content_package.scenes):
-        character = _build_character_layer(content_package, config, scene_index=index)
-        accent = _build_scene_accent_layer(content_package, index, config)
-        text = _build_text_layer(content_package, scene, index, config)
+        if editorial:
+            entry = photo_plan[index]
+            base = _fit_cover(
+                Image.open(photos[entry["index"]]).convert("RGB"),
+                (config.video_width, config.video_height),
+                entry["centering"],
+                entry["zoom"],
+            )
+            text = _build_editorial_text_layer(content_package, scene, index, config, str(entry["align"]))
+            blank = Image.new("RGBA", text.size, (0, 0, 0, 0))
+            character, accent = blank, blank.copy()
+            scene_background = blank.copy()
+        else:
+            base = None
+            scene_background = background.copy()
+            character = _build_character_layer(content_package, config, scene_index=index)
+            accent = _build_scene_accent_layer(content_package, index, config)
+            text = _build_text_layer(content_package, scene, index, config)
 
         character_path = render_dir / f"character_{index + 1:02d}.png"
         accent_path = render_dir / f"accent_{index + 1:02d}.png"
@@ -2310,12 +2535,11 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
             _save_layer(accent, accent_path)
             _save_layer(text, text_path)
 
-        # copy() because alpha_composite mutates, and the background is shared
-        # by every scene.
         _compose_scene(
-            [background.copy(), accent, character, text],
+            [scene_background, accent, character, text],
             (config.video_width, config.video_height),
             slides_dir / f"slide_{index + 1:02d}.png",
+            base=base,
         )
         assets.append(
             SceneRenderAssets(

@@ -64,6 +64,7 @@ class AppConfig:
     output_dir: Path
     assets_dir: Path
     official_images_dir: Path
+    editorial_photos_dir: Path
     state_dir: Path
     openai_api_key: str | None
     openai_model: str
@@ -96,6 +97,9 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         output_dir=resolved_root / "out",
         assets_dir=resolved_root / "assets" / "mbti_images",
         official_images_dir=resolved_root / settings.get("MBTI_IMAGES_DIR", "images"),
+        # Photographs for the editorial motif. The motif drops out of the
+        # rotation when the folder is empty, so this is optional.
+        editorial_photos_dir=_path_env(settings, resolved_root, "MBTI_EDITORIAL_PHOTOS_DIR", "assets/editorial_people"),
         state_dir=resolved_root / "state",
         openai_api_key=settings.get("OPENAI_API_KEY") or None,
         openai_model=settings.get("OPENAI_MODEL", "gpt-4.1-mini"),
