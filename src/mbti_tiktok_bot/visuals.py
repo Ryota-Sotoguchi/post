@@ -69,7 +69,7 @@ PROTECTED_JAPANESE_PHRASES = (
 # without touching the several hundred coordinate literals in this module:
 # ScaledDraw takes logical 1080x1920 coordinates and scales them on the way
 # through. Set to 1 to render exactly as before.
-RENDER_SCALE = 1
+RENDER_SCALE = 2
 
 
 def _scale_xy(xy, scale: int):
