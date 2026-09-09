@@ -38,7 +38,10 @@ if ($probe -ne "ok") {
 
 $generate = ".venv-linux/bin/python -m mbti_tiktok_bot run-daemon --run-once --no-reconcile"
 $publish  = ".venv-linux/bin/python -m tiktok_poster sync"
-$command  = "cd '$ProjectDir' && mkdir -p logs && $generate && $publish >> logs/task.log 2>&1"
+# The braces matter: without them the redirect covers only the publish half,
+# and a failing generation writes to a terminal nobody is watching. That is
+# how three days of silence happened last time.
+$command  = "cd '$ProjectDir' && mkdir -p logs && { $generate && $publish ; } >> logs/task.log 2>&1"
 $argument = "-d $Distro -e bash -lc `"$command`""
 $action   = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\wsl.exe" -Argument $argument
 
