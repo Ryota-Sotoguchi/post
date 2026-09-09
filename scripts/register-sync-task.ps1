@@ -12,7 +12,10 @@
         ./scripts/register-sync-task.ps1
 #>
 param(
-    [string]   $Distro     = "Ubuntu",
+    # Empty means the default distro. Naming one that does not exist fails the
+    # task with 0xFFFFFFFF and writes no log, which is indistinguishable from
+    # the task never having run - "Ubuntu" was wrong for Ubuntu-24.04.
+    [string]   $Distro     = "",
     [string]   $ProjectDir = "/home/n049395/work/tiktok",
     [string]   $TaskName   = "TikTok Image Import",
     [string[]] $Times      = @("07:00")
@@ -21,7 +24,15 @@ param(
 $ErrorActionPreference = "Stop"
 
 $command  = "cd '$ProjectDir' && mkdir -p logs && .venv/bin/python -m tiktok_poster sync >> logs/sync.log 2>&1"
-$argument = "-d $Distro -e bash -lc `"$command`""
+$target   = if ($Distro) { "-d $Distro " } else { "" }
+$argument = "$target-e bash -lc `"$command`""
+
+# A distro that cannot be reached would leave the task failing silently every
+# morning, so prove the command runs before registering it.
+& "$env:SystemRoot\System32\wsl.exe" @($target.Trim() -split ' ' | Where-Object { $_ }) -e bash -lc "cd '$ProjectDir' && echo ok" | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    throw "wsl could not reach $ProjectDir$(if ($Distro) { " in $Distro" } else { " in the default distro" }). Check ``wsl -l -v``."
+}
 $action   = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\wsl.exe" -Argument $argument
 
 $triggers = foreach ($time in $Times) { New-ScheduledTaskTrigger -Daily -At $time }
