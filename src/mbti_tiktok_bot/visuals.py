@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageFont, ImageOps
 
-from mbti_tiktok_bot.catalog import GROUP_PALETTES
+from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS, GROUP_PALETTES, Palette
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.fonts import load_font
 from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene, SceneRenderAssets
@@ -434,6 +434,28 @@ def _slam_label_box(content_package: ContentPackage) -> tuple[int, int, int, int
     return _avoid_title_panel_box(content_package, (80, 520, 330, 604))
 
 
+def _seed_choice(seed: int, salt: str, count: int) -> int:
+    """Independent draws from one seed.
+
+    _layout_variant_index already takes seed % 3 and the character composition
+    seed % 8. A new axis on a bare seed % n would track those exactly and
+    collapse the variation space, so each axis gets its own salt.
+    """
+    digest = hashlib.sha256(f"{seed}|{salt}".encode("utf-8")).digest()
+    return int.from_bytes(digest[:4], "big") % count
+
+
+def _palette(content_package: ContentPackage) -> Palette:
+    """The colourway for this post.
+
+    Seeded without the MBTI type, so all 16 types of a series share it and a
+    series still reads as one set.
+    """
+    variants = GROUP_PALETTE_VARIANTS[content_package.group_name]
+    seed = _visual_seed(content_package, include_mbti=False)
+    return variants[_seed_choice(seed, "palette", len(variants))]
+
+
 def _style_offset(content_package: ContentPackage) -> int:
     seed = f"{content_package.series_name}|{content_package.format_name}|{content_package.theme}"
     return sum(ord(char) for char in seed) % 5
@@ -473,7 +495,9 @@ def _visual_identity(content_package: ContentPackage) -> dict[str, object]:
     topic_seed = _visual_seed(content_package, include_mbti=False)
     mbti_seed = _visual_seed(content_package, include_mbti=True)
     return {
-        "version": 4,
+        # 5: palettes went from four fixed triples to 24 seeded ones, and the
+        # renderer moved to 2x supersampling. Anything from 4 looks different.
+        "version": 5,
         "topic_key": hashlib.sha1(
             f"{content_package.series_name}|{content_package.format_name}|{content_package.theme}".encode("utf-8")
         ).hexdigest()[:12],
@@ -487,6 +511,8 @@ def _visual_identity(content_package: ContentPackage) -> dict[str, object]:
         "thumbnail_theme_label": False,
         "design_tier": "deluxe",
         "group_palette": content_package.group_name,
+        "palette": _palette(content_package).name,
+        "render_scale": RENDER_SCALE,
     }
 
 
@@ -943,6 +969,21 @@ def _draw_topic_illustration_stage(
             draw.rounded_rectangle((left - inset, top - inset, right + inset, bottom + inset), radius=74 + offset * 18, outline=_hex_to_rgba(light, 78 - offset * 14), width=5)
 
 
+# accent is tuned to be bright against the background, which leaves it far too
+# light to carry white text: 1.57:1 for 探検家, 2.00:1 for 番人. Pills that hold
+# white copy use the deeper partner instead. Keyed on the accent because all 24
+# are distinct, which keeps accent_deep out of a dozen function signatures.
+_ACCENT_DEEP_BY_ACCENT = {
+    palette.accent: palette.accent_deep
+    for variants in GROUP_PALETTE_VARIANTS.values()
+    for palette in variants
+}
+
+
+def _pill_fill(accent: str, alpha: int = 255) -> tuple[int, int, int, int]:
+    return _hex_to_rgba(_ACCENT_DEEP_BY_ACCENT.get(accent, accent), alpha)
+
+
 def _draw_label(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str, font, fill, text_fill) -> None:
     draw.rounded_rectangle(box, radius=34, fill=fill)
     text_box = _measure_draw().textbbox((0, 0), text, font=font)
@@ -1128,7 +1169,7 @@ def _draw_thumbnail_overlay(
         label_right,
         "SWIPE →",
         fonts["scene_tag"],
-        _hex_to_rgba(accent, 220),
+        _pill_fill(accent, 220),
         "white",
     )
 
@@ -1259,7 +1300,7 @@ def _draw_scene_style_bottom_board(
     card_bottom = _fitted_card_bottom(content_top, title_height + 48 + body_height, 1768)
     _draw_shadowed_round_box(image, (44, 1040, 1036, card_bottom), 68, (10, 15, 35, 164), 150)
     draw.rounded_rectangle((78, 1080, 102, card_bottom - 78), radius=12, fill=_hex_to_rgba(light, 235))
-    _draw_label(draw, (126, 1084, 390, 1170), f"SCENE {scene_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent, 210), "white")
+    _draw_label(draw, (126, 1084, 390, 1170), f"SCENE {scene_index + 1}", fonts["scene_tag"], _pill_fill(accent, 210), "white")
     draw.multiline_text((126, content_top), title, font=title_font, fill="white", spacing=title_spacing)
     draw.multiline_text((126, content_top + title_height + 48), body, font=body_font, fill=(245, 245, 245), spacing=body_spacing)
     counter_text = f"{scene_index + 1:02d} / {scene_total}"
@@ -1309,7 +1350,7 @@ def _draw_scene_style_chat(
     _draw_shadowed_round_box(image, bubble_b, 62, _hex_to_rgba(light, 228), 106)
     draw.polygon([(158, bubble_a[3] - 2), (210, bubble_a[3] + 38), (240, bubble_a[3] - 14)], fill=(255, 255, 255, 240))
     draw.polygon([(760, bubble_b[3] - 12), (816, bubble_b[3] + 24), (846, bubble_b[3] - 30)], fill=_hex_to_rgba(light, 228))
-    _draw_label(draw, _offset_box((102, 634, 320, 714), dy=top_shift), f"{scene_index + 1:02d}", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, _offset_box((102, 634, 320, 714), dy=top_shift), f"{scene_index + 1:02d}", fonts["scene_tag"], _pill_fill(accent), "white")
     title_y = bubble_a[1] + max((bubble_a_height - title_height) // 2, 0) + 8
     body_y = bubble_b[1] + max((bubble_b_height - body_height) // 2, 0) - 6
     draw.multiline_text((104, title_y), title, font=title_font, fill=background, spacing=title_spacing)
@@ -1398,7 +1439,7 @@ def _draw_scene_style_wrapup(
     content_top = 870
     card_bottom = _fitted_card_bottom(content_top, title_height + 54 + body_height, 1586)
     _draw_shadowed_round_box(image, (86, 676, 998, card_bottom), 68, (255, 255, 255, 226), 116)
-    _draw_label(draw, (122, 716, 436, 802), f"{scene_index + 1:02d} / {scene_total}", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, (122, 716, 436, 802), f"{scene_index + 1:02d} / {scene_total}", fonts["scene_tag"], _pill_fill(accent), "white")
     _draw_label(draw, (690, 716, 958, 802), "CHECK", fonts["scene_tag"], _hex_to_rgba(light, 220), background)
     draw.multiline_text((124, content_top), title, font=title_font, fill=background, spacing=title_spacing)
     draw.multiline_text((124, content_top + title_height + 54), body, font=body_font, fill="#181818", spacing=body_spacing)
@@ -1423,7 +1464,7 @@ def _draw_scene_style_closer(
     image.alpha_composite(glow)
 
     _draw_shadowed_round_box(image, (78, 620, 1008, 1668), 74, (255, 255, 255, 236), 124)
-    _draw_label(draw, (118, 666, 436, 752), "LAST SLIDE", fonts["scene_tag"], accent, "white")
+    _draw_label(draw, (118, 666, 436, 752), "LAST SLIDE", fonts["scene_tag"], _pill_fill(accent), "white")
     _draw_label(draw, (694, 666, 962, 752), "COMMENT & SHARE", fonts["scene_tag"], _hex_to_rgba(light, 224), background)
 
     title, title_font, title_spacing, _, title_height = _fit_text_block(
@@ -1478,7 +1519,7 @@ def _draw_scene_style_closer(
         min_spacing=2,
     )
     share_box = (164, comment_box[3] + 38, 926, comment_box[3] + 38 + max(102, share_height + 42))
-    draw.rounded_rectangle(share_box, radius=36, fill=_hex_to_rgba(accent, 214))
+    draw.rounded_rectangle(share_box, radius=36, fill=_pill_fill(accent, 214))
     share_y = share_box[1] + max((share_box[3] - share_box[1] - share_height) // 2, 0) - 2
     draw.multiline_text((232, share_y), share_text, font=share_font, fill="white", spacing=share_spacing)
 
@@ -1497,7 +1538,7 @@ def _draw_pulse_thumbnail_overlay(
     draw = ScaledDraw(image)
 
     label_y = card[1] + 42
-    _draw_label(draw, (112, label_y, 432, label_y + 78), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(draw, (112, label_y, 432, label_y + 78), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["scene_tag"], _pill_fill(accent), "white")
     _draw_label(
         draw,
         (676, label_y, 958, label_y + 78),
@@ -1549,7 +1590,7 @@ def _draw_pulse_scene_overlay(
     _draw_shadowed_round_box(image, card, 58, (248, 255, 250, 255), 112)
 
     label_y = card[1] + 40
-    _draw_label(draw, (112, label_y, 334, label_y + 72), f"POINT {content_index + 1}", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(draw, (112, label_y, 334, label_y + 72), f"POINT {content_index + 1}", fonts["scene_tag"], _pill_fill(accent), "white")
     _draw_label(draw, (374, label_y, 646, label_y + 72), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["detail"], _hex_to_rgba(light), background)
     _draw_label(draw, (742, label_y, 958, label_y + 72), f"{content_index + 1:02d} / {scene_total}", fonts["scene_tag"], _hex_to_rgba(light), background)
 
@@ -1598,7 +1639,7 @@ def _draw_pulse_closer_overlay(
 ) -> None:
     card = PULSE_CLOSER_CARD
     _draw_shadowed_round_box(image, card, 64, (248, 255, 250, 255), 118)
-    _draw_label(draw, (112, 766, 414, 838), "LAST SLIDE", fonts["scene_tag"], _hex_to_rgba(accent), "white")
+    _draw_label(draw, (112, 766, 414, 838), "LAST SLIDE", fonts["scene_tag"], _pill_fill(accent), "white")
     _draw_label(draw, (626, 766, 958, 838), "COMMENT & SHARE", fonts["scene_tag"], _hex_to_rgba(light), background)
 
     title, title_font, title_spacing, _, title_height = _fit_text_block(
@@ -1653,7 +1694,7 @@ def _draw_pulse_closer_overlay(
         min_spacing=2,
     )
     share_box = (164, 1454, 916, 1558)
-    draw.rounded_rectangle(share_box, radius=34, fill=_hex_to_rgba(accent))
+    draw.rounded_rectangle(share_box, radius=34, fill=_pill_fill(accent))
     share_y = share_box[1] + max((share_box[3] - share_box[1] - share_height) // 2, 0) - 2
     draw.multiline_text((218, share_y), share_text, font=share_font, fill="white", spacing=share_spacing)
 
@@ -1802,7 +1843,8 @@ def _build_background_layer(content_package: ContentPackage, config: AppConfig) 
     width = config.video_width
     height = config.video_height
     device = (width * RENDER_SCALE, height * RENDER_SCALE)
-    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    palette = _palette(content_package)
+    background, accent, light = palette.background, palette.accent, palette.light
     image = _make_gradient(device[0], device[1], background, accent)
 
     blur_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
@@ -1871,7 +1913,8 @@ def _build_text_layer(
     width = config.video_width
     height = config.video_height
     device = (width * RENDER_SCALE, height * RENDER_SCALE)
-    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    palette = _palette(content_package)
+    background, accent, light = palette.background, palette.accent, palette.light
     image = Image.new("RGBA", device, (0, 0, 0, 0))
     draw = ScaledDraw(image)
 
@@ -1905,7 +1948,8 @@ def _build_character_layer(
     width = config.video_width
     height = config.video_height
     device = (width * RENDER_SCALE, height * RENDER_SCALE)
-    _, accent, light = GROUP_PALETTES[content_package.group_name]
+    palette = _palette(content_package)
+    accent, light = palette.accent, palette.light
     image = Image.new("RGBA", device, (0, 0, 0, 0))
     draw = ScaledDraw(image)
 
@@ -2038,7 +2082,8 @@ def _build_accent_layer(content_package: ContentPackage, config: AppConfig) -> I
     width = config.video_width
     height = config.video_height
     device = (width * RENDER_SCALE, height * RENDER_SCALE)
-    _, accent, light = GROUP_PALETTES[content_package.group_name]
+    palette = _palette(content_package)
+    accent, light = palette.accent, palette.light
     image = Image.new("RGBA", device, (0, 0, 0, 0))
     draw = ScaledDraw(image)
 
@@ -2079,7 +2124,8 @@ def _build_scene_accent_layer(
     width = config.video_width
     height = config.video_height
     device = (width * RENDER_SCALE, height * RENDER_SCALE)
-    background, accent, light = GROUP_PALETTES[content_package.group_name]
+    palette = _palette(content_package)
+    background, accent, light = palette.background, palette.accent, palette.light
     image = Image.new("RGBA", device, (0, 0, 0, 0))
     draw = ScaledDraw(image)
     scene = content_package.scenes[scene_index]

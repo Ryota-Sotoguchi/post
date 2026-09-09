@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 TYPE_DATA: dict[str, dict[str, object]] = {
     "INTJ": {
         "archetype": "戦略家",
@@ -195,9 +197,63 @@ MBTI_POST_ORDER: list[str] = [
     "ESFP",
 ]
 
+@dataclass(frozen=True, slots=True)
+class Palette:
+    """One colourway.
+
+    accent is the bright decorative colour; accent_deep is the one that can
+    carry white text. They used to be the same value, which left the label
+    pills at 1.57:1 for 探検家 and 2.00:1 for 番人 - effectively unreadable.
+    """
+
+    name: str
+    background: str
+    accent: str
+    light: str
+    accent_deep: str
+
+
+# Six colourways per group. One is picked per topic, so all 16 types of a
+# series stay on the same palette while different series differ.
+GROUP_PALETTE_VARIANTS: dict[str, tuple[Palette, ...]] = {
+    "分析家": (
+        Palette("amethyst", "#45216b", "#8b4fd6", "#f3e8ff", "#5b2e8c"),
+        Palette("plum", "#3b1a5c", "#7b3fc4", "#efe4ff", "#54258a"),
+        Palette("indigo", "#2e2470", "#6d5ce0", "#ebe9ff", "#3f3496"),
+        Palette("orchid", "#55205f", "#a749c9", "#fbe6ff", "#71308a"),
+        Palette("nocturne", "#331a52", "#7a4fd0", "#ece3ff", "#4a2782"),
+        Palette("iris", "#3d2b7a", "#7f6ae8", "#eeebff", "#4f3aa4"),
+    ),
+    "外交官": (
+        Palette("emerald", "#184d3b", "#3fbf7f", "#e9fff2", "#1d6b4e"),
+        Palette("jade", "#10453f", "#2fb39b", "#e4fff8", "#146258"),
+        Palette("moss", "#1f4a2c", "#4cb96a", "#ebfced", "#2a6a3d"),
+        Palette("lagoon", "#0f4448", "#2eb0ab", "#e3fdfb", "#136063"),
+        Palette("fern", "#16402f", "#38a86e", "#e6fbee", "#1c5c43"),
+        Palette("mint", "#1c5245", "#46c79c", "#eafff6", "#22705f"),
+    ),
+    "番人": (
+        Palette("azure", "#0d4f6d", "#4fc3f7", "#e8f9ff", "#146287"),
+        Palette("cobalt", "#12386b", "#4d8ef0", "#e8f0ff", "#1b4d92"),
+        Palette("steel", "#1b4457", "#57a8c8", "#e9f8fd", "#245c75"),
+        Palette("harbor", "#0a4258", "#3fb3d9", "#e4f8ff", "#0f5b78"),
+        Palette("slate", "#233a5c", "#5f83cf", "#ebf0fc", "#2e4d7a"),
+        Palette("glacier", "#155466", "#48bcd0", "#e6fbff", "#1a6d84"),
+    ),
+    # The old 探検家 background (#8a5b00) put its light panel at 5.41:1
+    # against it, so these are darker.
+    "探検家": (
+        Palette("amber", "#6b4405", "#f6c945", "#fff6cf", "#8a5b0a"),
+        Palette("copper", "#6a3410", "#e8934a", "#fff0e0", "#8a4a18"),
+        Palette("brass", "#5a4409", "#dcbb46", "#fdf6da", "#77590f"),
+        Palette("sunset", "#73301c", "#f08a55", "#ffeee4", "#943f26"),
+        Palette("honey", "#63450c", "#eec14e", "#fff5da", "#835c14"),
+        Palette("terracotta", "#6d2c1b", "#e07a52", "#ffece5", "#8c3a25"),
+    ),
+}
+
+# Kept so anything still unpacking three hex strings keeps working.
 GROUP_PALETTES: dict[str, tuple[str, str, str]] = {
-    "分析家": ("#45216b", "#8b4fd6", "#f3e8ff"),
-    "外交官": ("#184d3b", "#3fbf7f", "#e9fff2"),
-    "番人": ("#0d4f6d", "#4fc3f7", "#e8f9ff"),
-    "探検家": ("#8a5b00", "#f6c945", "#fff6cf"),
+    group: (variants[0].background, variants[0].accent, variants[0].light)
+    for group, variants in GROUP_PALETTE_VARIANTS.items()
 }
