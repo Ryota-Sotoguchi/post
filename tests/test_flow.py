@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 import pytest
 
-from tiktok_poster.catalog import load_manifest, manifest_path, scan
-from tiktok_poster.cli import _run_post, _run_sync
+from tiktok_poster.catalog import load_manifest, manifest_path, scan, write_manifest
+from tiktok_poster.cli import _queue, _run_post, _run_sync
 from tiktok_poster.config import Config
 from tiktok_poster.media import post_publish_dir
 from tiktok_poster.pages import PagesError, wait_until_live
@@ -259,3 +259,57 @@ def test_a_blocked_carousel_stays_at_the_head_of_the_queue(config: Config) -> No
     ), patch("tiktok_poster.cli.tiktok.send_to_drafts", return_value="ok") as send_mock:
         assert _run_post(_post_args(count=1)) == 0
     assert send_mock.call_args.args[1] == first.title
+
+
+def _sent(config: Config, *keys: str) -> None:
+    state = load_state(config.state_path)
+    for key in keys:
+        state.add(key, key, f"id-{key}")
+    save_state(config.state_path, state)
+
+
+def test_post_waits_for_a_slot_that_is_not_published_instead_of_moving_on(
+    config: Config, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The failure this guards against: a theme half sent, then abandoned.
+
+    Only the first slot of the started theme is published, so the second has
+    nowhere to come from. Nothing else may go out ahead of it, not the other
+    theme and not a later type.
+    """
+    _synced(config)
+    _authorize(config)
+    uploads = load_manifest(manifest_path(config.publish_dir))
+    started = uploads[0].key.split("/")[0]
+    _sent(config, uploads[0].key)
+    # Drop the rest of the started theme back out of the manifest, as a sync
+    # taken while the theme was still being drawn would have left it.
+    write_manifest(
+        manifest_path(config.publish_dir),
+        [upload for upload in uploads if not upload.key.startswith(f"{started}/")] + [uploads[0]],
+        config.pages_base_url,
+    )
+
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts") as send_mock:
+        assert _run_post(_post_args()) == 0
+
+    send_mock.assert_not_called()
+    assert "Waiting for post_02" in capsys.readouterr().out
+
+
+def test_the_rest_of_a_theme_does_not_cut_into_one_already_going_out(config: Config) -> None:
+    """A theme completed by a later sync waits its turn behind a started theme."""
+    _synced(config)
+    uploads = load_manifest(manifest_path(config.publish_dir))
+    first, second = uploads[0].key.split("/")[0], uploads[-1].key.split("/")[0]
+    # The second theme in the manifest is the one that started, so the first
+    # must not slip in front of it even though it sorts earlier.
+    _sent(config, f"{second}/post_01_INTJ")
+
+    with patch("tiktok_poster.cli.load_config", return_value=config):
+        queue, waiting = _queue(config)
+
+    assert waiting is None
+    assert [upload.key.split("/")[0] for upload in queue] == [second, first, first]

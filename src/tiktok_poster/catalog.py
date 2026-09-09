@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,13 @@ SLIDE_RE = re.compile(r"^slide_(\d+)\.(png|jpg|jpeg|webp)$", re.IGNORECASE)
 # TikTok caps a carousel at 35 images.
 MAX_SLIDES = 35
 FIXED_HASHTAGS = ("#恋愛", "#MBTI")
+
+# A theme is drawn once per MBTI type, over several days rather than in one go.
+# Publishing one mid-draw put four of its sixteen carousels in the queue and
+# sent the poster on to the next theme, so half a theme is the least that may
+# be published and the rest arrives as the same theme's continuation.
+THEME_SIZE = 16
+THEME_MIN_POSTS = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +97,19 @@ def scan(source_dir: Path) -> list[Post]:
     return posts
 
 
+def ready_themes(
+    posts: list[Post], minimum: int = THEME_MIN_POSTS
+) -> tuple[list[Post], dict[str, int]]:
+    """Split the scan into what may be published and the themes still too thin.
+
+    Returns the publishable posts and the themes held back, each mapped to how
+    many of it have been drawn so far.
+    """
+    drawn = Counter(post.theme for post in posts)
+    held = {theme: count for theme, count in drawn.items() if count < minimum}
+    return [post for post in posts if post.theme not in held], held
+
+
 MANIFEST_NAME = "manifest.json"
 
 
@@ -102,9 +123,16 @@ class Upload:
     """
 
     key: str
+    theme: str
     title: str
     description: str
     images: tuple[str, ...]
+
+    @property
+    def slot(self) -> int:
+        """Which of the theme's MBTI slots this fills, or 0 if the key is odd."""
+        match = POST_DIR_RE.match(self.key.partition("/")[2])
+        return int(match.group(1)) if match else 0
 
 
 def manifest_path(publish_dir: Path) -> Path:
@@ -121,6 +149,7 @@ def write_manifest(path: Path, uploads: list[Upload], base_url: str) -> Path:
                 "posts": [
                     {
                         "key": upload.key,
+                        "theme": upload.theme,
                         "title": upload.title,
                         "description": upload.description,
                         "images": list(upload.images),
@@ -136,6 +165,18 @@ def write_manifest(path: Path, uploads: list[Upload], base_url: str) -> Path:
     return path
 
 
+def manifest_generated_at(path: Path) -> str | None:
+    """When the manifest was last written, for spotting a sync that stopped running."""
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    stamp = payload.get("generated_at")
+    return str(stamp) if stamp else None
+
+
 def load_manifest(path: Path) -> list[Upload]:
     if not path.exists():
         raise FileNotFoundError(
@@ -145,9 +186,58 @@ def load_manifest(path: Path) -> list[Upload]:
     return [
         Upload(
             key=str(entry["key"]),
+            theme=str(entry.get("theme", "")),
             title=str(entry["title"]),
             description=str(entry["description"]),
             images=tuple(str(url) for url in entry["images"]),
         )
         for entry in payload.get("posts", [])
     ]
+
+
+def send_order(
+    uploads: list[Upload], posted: list[str], size: int = THEME_SIZE
+) -> tuple[list[Upload], tuple[str, int] | None]:
+    """What to send next, strictly in order, and the slot the queue waits on.
+
+    `posted` is the keys already sent, in the order they went out, so the order
+    a theme was started in is the order it is finished in.
+
+    A theme is walked slot by slot and the whole queue stops at the first slot
+    that has not been published yet: skipping ahead to the next type - or worse,
+    to the next theme - is what put four carousels of one theme in the drafts
+    and then moved on, which is the gap this exists to prevent. The queue picks
+    up again by itself once `sync` publishes the missing slot.
+    """
+    published: dict[str, dict[int, Upload]] = {}
+    for upload in uploads:
+        theme, _, _ = upload.key.partition("/")
+        if upload.slot:
+            published.setdefault(theme, {})[upload.slot] = upload
+
+    # A slot already in the drafts is never waited on, even if its images have
+    # since left the manifest, so a retired theme cannot block the queue.
+    sent: dict[str, set[int]] = {}
+    started: dict[str, int] = {}
+    for key in posted:
+        theme, _, name = key.partition("/")
+        started.setdefault(theme, len(started))
+        match = POST_DIR_RE.match(name)
+        if match:
+            sent.setdefault(theme, set()).add(int(match.group(1)))
+
+    untouched = len(started)
+    manifest_order = {theme: index for index, theme in enumerate(published)}
+    themes = sorted(published, key=lambda theme: (started.get(theme, untouched), manifest_order[theme]))
+
+    queue: list[Upload] = []
+    for theme in themes:
+        slots, done = published[theme], sent.get(theme, set())
+        for slot in range(1, size + 1):
+            if slot in done:
+                continue
+            upload = slots.get(slot)
+            if upload is None:
+                return queue, (theme, slot)
+            queue.append(upload)
+    return queue, None

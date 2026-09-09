@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from tiktok_poster.catalog import THEME_MIN_POSTS, THEME_SIZE
+
 
 def _read_env_file(path: Path) -> dict[str, str]:
     values: dict[str, str] = {}
@@ -35,6 +37,8 @@ class Config:
     pages_base_url: str
     state_path: Path
     posts_per_day: int
+    theme_size: int
+    theme_min_posts: int
     jpeg_quality: int
     keep_published_posts: int
     client_key: str | None
@@ -65,6 +69,11 @@ def load_config(project_root: Path | None = None) -> Config:
         pages_base_url=settings.get("PAGES_BASE_URL", "").rstrip("/"),
         state_path=path_of("STATE_PATH", "state/posted.json"),
         posts_per_day=int(settings.get("POSTS_PER_DAY", "5")),
+        # One theme covers the 16 MBTI types, but it is drawn over several days,
+        # so half of it is enough to start publishing; the poster waits at the
+        # first slot that is missing rather than moving on to another theme.
+        theme_size=int(settings.get("THEME_SIZE", str(THEME_SIZE))),
+        theme_min_posts=int(settings.get("THEME_MIN_POSTS", str(THEME_MIN_POSTS))),
         jpeg_quality=int(settings.get("JPEG_QUALITY", "90")),
         # Published images stay reachable only long enough for TikTok to fetch
         # them; keeping every carousel would grow the repo without bound.

@@ -9,7 +9,16 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
 from tiktok_poster import media, oauth, pages, tiktok
-from tiktok_poster.catalog import Upload, load_manifest, manifest_path, scan, write_manifest
+from tiktok_poster.catalog import (
+    Upload,
+    load_manifest,
+    manifest_generated_at,
+    manifest_path,
+    ready_themes,
+    scan,
+    send_order,
+    write_manifest,
+)
 from tiktok_poster.config import Config, load_config
 from tiktok_poster.state import State, load_state, save_state
 
@@ -18,9 +27,23 @@ def _manifest(config: Config) -> list[Upload]:
     return load_manifest(manifest_path(config.publish_dir))
 
 
-def _pending(config: Config) -> list[Upload]:
-    posted = load_state(config.state_path).posted_keys
-    return [upload for upload in _manifest(config) if upload.key not in posted]
+def _queue(config: Config) -> tuple[list[Upload], tuple[str, int] | None]:
+    """The carousels that may go out now, and the slot the queue is held at."""
+    uploads = _manifest(config)
+    # Send order, not just membership: the records are in the order they went
+    # out, which is what decides which started theme is finished first.
+    posted = [record.key for record in load_state(config.state_path).records]
+    queue, waiting = send_order(uploads, posted, config.theme_size)
+    if waiting is None:
+        return queue, None
+    slug, slot = waiting
+    name = next((upload.theme for upload in uploads if upload.key.startswith(f"{slug}/") and upload.theme), slug)
+    return queue, (name, slot)
+
+
+def _report_waiting(theme: str, slot: int) -> None:
+    print(f"Waiting for post_{slot:02d} of 「{theme}」.")
+    print("Draw it and run `sync`. Nothing behind it is sent, so the order holds.")
 
 
 def _run_sync(args: argparse.Namespace) -> int:
@@ -33,12 +56,23 @@ def _run_sync(args: argparse.Namespace) -> int:
     posts = scan(config.source_dir)
     print(f"Found {len(posts)} carousel(s) across {len({post.theme for post in posts})} theme(s)")
 
+    # A theme is drawn over several days. Publishing one that has barely started
+    # puts a handful of carousels in the queue, and the poster then waits at the
+    # slot after them rather than doing anything else, so it stays out until
+    # there is enough of it to be worth starting.
+    posts, held = ready_themes(posts, config.theme_min_posts)
+    for theme, drawn in held.items():
+        print(f"Holding back 「{theme}」: {drawn}/{config.theme_min_posts} drawn")
+    if held:
+        print(f"Publishing {len(posts)} carousel(s) across {len({post.theme for post in posts})} theme(s)")
+
     uploads: list[Upload] = []
     for index, post in enumerate(posts, start=1):
         media.publish_post(config, post)
         uploads.append(
             Upload(
                 key=post.key,
+                theme=post.theme,
                 title=post.title,
                 description=post.description,
                 images=tuple(media.public_urls(config, post)),
@@ -65,6 +99,27 @@ def _run_sync(args: argparse.Namespace) -> int:
     return 0
 
 
+# A sync that quietly stopped running is what froze the library for a week, and
+# nothing on screen said so. Its age is the one number that would have shown it.
+STALE_MANIFEST_DAYS = 2
+
+
+def _manifest_age(config: Config) -> str:
+    stamp = manifest_generated_at(manifest_path(config.publish_dir))
+    if not stamp:
+        return "never written - run `sync` on the PC with the images"
+    try:
+        written = datetime.fromisoformat(stamp)
+    except ValueError:
+        return stamp
+    if written.tzinfo is None:
+        written = written.replace(tzinfo=timezone.utc)
+    days = (datetime.now(timezone.utc) - written).days
+    if days >= STALE_MANIFEST_DAYS:
+        return f"{stamp} - {days} days old; run `sync` on the PC with the images"
+    return stamp
+
+
 def _run_status(_args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     state = load_state(config.state_path)
@@ -74,12 +129,17 @@ def _run_status(_args: argparse.Namespace) -> int:
         print(error)
         return 1
     pending = [upload for upload in uploads if upload.key not in state.posted_keys]
+    queue, waiting = _queue(config)
 
     print(f"Carousels     : {len(uploads)}")
     print(f"Sent          : {len(state.records)}")
     print(f"Pending       : {len(pending)}")
     if config.posts_per_day:
         print(f"Days of stock : {len(pending) // config.posts_per_day} at {config.posts_per_day}/day")
+    print(f"Manifest      : {_manifest_age(config)}")
+    if waiting:
+        theme, slot = waiting
+        print(f"Waiting for   : post_{slot:02d} of 「{theme}」 - draw it and run `sync`")
     # The sandbox cannot refresh, so what matters is not whether a token was
     # ever obtained but whether the one on disk is still inside its 24 hours.
     tokens = tiktok.load_tokens(config)
@@ -91,9 +151,9 @@ def _run_status(_args: argparse.Namespace) -> int:
         print("Token         : none - run `daily` to authorize")
     print(f"Pages base URL: {config.pages_base_url or '(unset)'}")
 
-    if pending:
+    if queue:
         print("\nNext up:")
-        for upload in pending[: config.posts_per_day]:
+        for upload in queue[: config.posts_per_day]:
             print(f"  {upload.title}   {upload.description}")
     for record in state.records[-3:]:
         print(f"\nLast sent: {record.posted_at}  {record.title}  [{record.status}]")
@@ -231,12 +291,16 @@ def _sent_today(state: State) -> int:
 def _run_post(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     try:
-        pending = _pending(config)
+        pending, waiting = _queue(config)
     except FileNotFoundError as error:
         print(error)
         return 1
+    if waiting:
+        _report_waiting(*waiting)
+        print()
     if not pending:
-        print("Nothing pending.")
+        if not waiting:
+            print("Nothing pending.")
         return 0
     state = load_state(config.state_path)
 

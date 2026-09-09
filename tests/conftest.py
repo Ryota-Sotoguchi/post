@@ -18,8 +18,8 @@ def _slide(path: Path, size=(1080, 1920), mode="RGB") -> None:
 def source_tree(tmp_path: Path) -> Path:
     source = tmp_path / "source"
     layout = {
-        "が本命だけに見せる距離の縮め方": ["post_01_INTJ", "post_02_INTP", "post_10_ISFJ"],
-        "がしんどい時に出るサイン": ["post_01_INTJ"],
+        "が本命だけに見せる距離の縮め方": ["post_01_INTJ", "post_02_INTP"],
+        "がしんどい時に出るサイン": ["post_01_INTJ", "post_02_INTP"],
     }
     for theme, posts in layout.items():
         for post in posts:
@@ -42,6 +42,9 @@ def config(tmp_path: Path, source_tree: Path) -> Config:
         state_path=tmp_path / "state" / "posted.json",
         pages_base_url="https://example.github.io/tiktok/media",
         posts_per_day=5,
+        # Two slots per theme stands in for the sixteen MBTI types.
+        theme_size=2,
+        theme_min_posts=1,
         jpeg_quality=90,
         keep_published_posts=2,
         client_key="key",
