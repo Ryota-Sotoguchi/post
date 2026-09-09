@@ -31,10 +31,14 @@ def _read_env_file(path: Path) -> dict[str, str]:
 
 
 def _load_settings(project_root: Path) -> dict[str, str]:
+    # The repo root .env is the shared file, read by the poster half too. The
+    # generator used to keep its config inside .venv/, which does not survive
+    # rebuilding the virtualenv; that location is still honoured so an existing
+    # checkout keeps working, but the root file wins.
     settings: dict[str, str] = {}
-    env_path = project_root / ".venv" / ".env"
-    if env_path.exists():
-        settings.update(_read_env_file(env_path))
+    for env_path in (project_root / ".venv" / ".env", project_root / ".env"):
+        if env_path.exists():
+            settings.update(_read_env_file(env_path))
     settings.update(os.environ)
     return settings
 
@@ -67,6 +71,7 @@ class AppConfig:
     video_width: int
     video_height: int
     daily_posts: int
+    slot_posts: int
     topic_depth: str
     default_hashtags: list[str]
     phone_export_auto: bool
@@ -98,6 +103,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         video_width=int(settings.get("VIDEO_WIDTH", "1080")),
         video_height=int(settings.get("VIDEO_HEIGHT", "1920")),
         daily_posts=int(settings.get("DAILY_POSTS", "3")),
+        # One scheduled slot draws this many types. Four slots of four
+        # covers all 16 MBTI types in a day, so a theme starts and
+        # finishes on the same date instead of straddling five of them.
+        slot_posts=int(settings.get("SLOT_POSTS", "4")),
         topic_depth=(settings.get("TOPIC_DEPTH", "deep").strip().lower() or "deep"),
         default_hashtags=default_hashtags,
         phone_export_auto=_bool_env(settings, "PHONE_EXPORT_AUTO", default=False),

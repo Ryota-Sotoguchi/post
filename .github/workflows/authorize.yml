@@ -1,0 +1,56 @@
+name: Authorize for today
+
+# The sandbox will not refresh a token, so a person has to approve once a day.
+# That approval needs a browser, which a locked PC cannot provide — this lets
+# the whole thing happen on a phone: approve in TikTok, land on the project
+# page, and paste the address it shows into this workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      redirect_url:
+        description: The address you landed on after approving (paste the whole thing)
+        required: true
+
+concurrency:
+  group: tiktok-authorize
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - run: pip install -e .
+
+      - name: Exchange the code and store today's token
+        env:
+          TIKTOK_CLIENT_KEY: ${{ secrets.TIKTOK_CLIENT_KEY }}
+          TIKTOK_CLIENT_SECRET: ${{ secrets.TIKTOK_CLIENT_SECRET }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          REDIRECT_URL: ${{ inputs.redirect_url }}
+        run: |
+          # The code is single-use and dies in minutes, but the run log is
+          # public on a public repo, so keep it out of the log all the same.
+          echo "::add-mask::$REDIRECT_URL"
+          python -m tiktok_poster authorize \
+            --redirect-uri "https://ryota-sotoguchi.github.io/tiktok/" \
+            --code "$REDIRECT_URL" \
+            --sync-secret
+
+      - name: Publish when today's token runs out
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase --autostash origin main
+          git add docs/authorized.json
+          git diff --cached --quiet && exit 0
+          git commit -m "authorized: token good until $(python -c "import json;print(json.load(open('docs/authorized.json'))['expires_at'])")"
+          git push

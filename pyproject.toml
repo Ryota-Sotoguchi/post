@@ -3,19 +3,22 @@ requires = ["setuptools>=69", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "mbti-tiktok-bot"
+name = "tiktok-studio"
 version = "0.1.0"
-description = "Daily MBTI image asset pipeline with local phone export"
+description = "Generates MBTI carousels and queues them into TikTok drafts"
 readme = "README.md"
 requires-python = ">=3.10"
+# The generator was pinned to Pillow <12 and the poster ran on 12.3; the
+# generator's renderer is the Pillow-heavy half, so widening is the risk here.
+# Drop back to <12 if the generator's suite or a real render breaks.
 dependencies = [
-  "python-dotenv>=1.0.1,<2",
-  "Pillow>=11.1.0,<12",
-  "requests>=2.32.0,<3",
+  "Pillow>=11.1,<14",
+  "requests>=2.32,<3",
 ]
 
 [project.scripts]
 mbti-bot = "mbti_tiktok_bot.cli:main"
+tiktok-poster = "tiktok_poster.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

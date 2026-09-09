@@ -81,7 +81,9 @@ def _print_build_results(results, reused_existing: bool = False) -> None:
 
 
 def _should_reuse_existing_outputs(args: argparse.Namespace) -> bool:
-    return not args.mbti and not args.format
+    # run-slot and the daemon take no --mbti/--format overrides, so the
+    # attributes are absent there; only run-daily and plan define them.
+    return not getattr(args, "mbti", None) and not getattr(args, "format", None)
 
 
 def _should_export_to_phone(args: argparse.Namespace, config) -> bool:
@@ -100,7 +102,7 @@ def _build_slot_results(config, target_date):
     return build_daily_bundles(
         target_date=target_date,
         config=config,
-        count=1,
+        count=config.slot_posts,
         append_summary=True,
     )
 

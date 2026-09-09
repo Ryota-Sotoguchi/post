@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from dataclasses import dataclass, field, replace
 from datetime import date
 from difflib import SequenceMatcher
@@ -9,7 +10,7 @@ from pathlib import Path, PureWindowsPath
 
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.models import CLOSER_SCENE_BODY, CLOSER_SCENE_TITLE, ContentPackage, Scene
-from mbti_tiktok_bot.planner import SERIES_TOTAL_POSTS, build_daily_packages, build_template_package, maybe_polish_with_llm, persist_package
+from mbti_tiktok_bot.planner import SERIES_TOTAL_POSTS, build_daily_packages, build_template_package, maybe_polish_with_llm, persist_package, retire_topic_at
 from mbti_tiktok_bot.visuals import generate_scene_assets
 
 MAX_CONTENT_IMAGE_SLIDES = 10
@@ -17,6 +18,24 @@ SERIES_SUMMARY_FILE_NAME = "series_plan.json"
 LEGACY_DAILY_SUMMARY_FILE_NAME = "daily_plan.json"
 INVALID_FOLDER_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 CONTENT_OVERLAP_BLOCK_THRESHOLD = 0.8
+# A polish pass runs at temperature 0.9, so asking again is a real chance at
+# different copy. Two tries, then the topic itself is the problem.
+OVERLAP_POLISH_RETRIES = 2
+# Each retired topic costs a fresh generation round trip; stop rather than
+# burn a slot walking the whole backlog.
+MAX_TOPIC_RETIREMENTS = 2
+
+
+class ContentOverlap(ValueError):
+    """Raised when a package duplicates one already written under out/.
+
+    Subclasses ValueError because render_content_package has always raised
+    that here, and callers outside build_daily_bundles still rely on it.
+    """
+
+    def __init__(self, message: str, cycle_index: int) -> None:
+        super().__init__(message)
+        self.cycle_index = cycle_index
 
 
 @dataclass(slots=True)
@@ -183,11 +202,12 @@ def _iter_existing_packages(output_root: Path) -> list[tuple[Path, ContentPackag
     return packages
 
 
-def _assert_not_too_similar_to_existing_outputs(
+def _overlapping_package(
     config: AppConfig,
     content_package: ContentPackage,
     output_dir: Path,
-) -> None:
+) -> str | None:
+    """Describe the existing package this one duplicates, or None if it is new."""
     current_package_path = (output_dir / "package.json").resolve()
     current_body = _package_body_text(content_package)
     for package_path, existing_package in _iter_existing_packages(config.output_dir):
@@ -198,10 +218,11 @@ def _assert_not_too_similar_to_existing_outputs(
         title_similarity = _text_similarity(content_package.series_name, existing_package.series_name)
         body_similarity = _text_similarity(current_body, _package_body_text(existing_package))
         if title_similarity >= CONTENT_OVERLAP_BLOCK_THRESHOLD or body_similarity >= CONTENT_OVERLAP_BLOCK_THRESHOLD:
-            raise ValueError(
+            return (
                 "Generated package overlaps an existing package by 80% or more: "
                 f"{content_package.title} vs {existing_package.title} ({package_path})"
             )
+    return None
 
 
 def _write_series_summary(base_dir: Path, packages: list[ContentPackage]) -> Path:
@@ -218,8 +239,21 @@ def _write_series_summary(base_dir: Path, packages: list[ContentPackage]) -> Pat
 
 
 def _render_bundle(content_package: ContentPackage, config: AppConfig, output_dir: Path) -> PipelineResult:
-    content_package = maybe_polish_with_llm(content_package, config)
-    _assert_not_too_similar_to_existing_outputs(config, content_package, output_dir)
+    template_package = content_package
+    content_package = maybe_polish_with_llm(template_package, config)
+    overlap = _overlapping_package(config, content_package, output_dir)
+    # Without an API key the polish is a no-op, so asking again would return
+    # the identical package; go straight to reporting the overlap.
+    attempts = OVERLAP_POLISH_RETRIES if config.openai_api_key else 0
+    for _ in range(attempts):
+        if overlap is None:
+            break
+        print(f"Overlap detected, re-polishing: {overlap}")
+        content_package = maybe_polish_with_llm(template_package, config)
+        overlap = _overlapping_package(config, content_package, output_dir)
+    if overlap is not None:
+        raise ContentOverlap(overlap, content_package.global_post_index // SERIES_TOTAL_POSTS)
+
     package_path = persist_package(content_package, output_dir)
     render_package = _build_render_package(content_package)
 
@@ -338,23 +372,48 @@ def build_daily_bundles(
         explicit_format=explicit_format,
         explicit_mbti=explicit_mbti,
     )
-    packages_by_base_dir: dict[Path, list[ContentPackage]] = {}
-    for package in packages:
-        base_dir = _topic_output_dir(config.output_dir, package)
-        packages_by_base_dir.setdefault(base_dir, []).append(package)
+    for attempt in range(MAX_TOPIC_RETIREMENTS + 1):
+        try:
+            results = [
+                render_content_package(
+                    package,
+                    config,
+                    _bundle_output_dir(_topic_output_dir(config.output_dir, package), package),
+                )
+                for package in packages
+            ]
+        except ContentOverlap as overlap:
+            if attempt == MAX_TOPIC_RETIREMENTS:
+                raise
+            # Every type of this topic would collide the same way, so swap the
+            # topic out and rebuild rather than failing the slot. Written as a
+            # rebuild because all of a slot's packages share one topic.
+            stale_dir = _topic_output_dir(config.output_dir, packages[0])
+            replacement = retire_topic_at(config, overlap.cycle_index, str(overlap))
+            print(f"Retired 「{packages[0].series_name}」: {overlap}")
+            print(f"Continuing with 「{replacement['name']}」")
+            if stale_dir.is_dir() and not any(stale_dir.glob("post_*")):
+                shutil.rmtree(stale_dir, ignore_errors=True)
+            packages = build_daily_packages(
+                target_date=target_date,
+                config=config,
+                count=count,
+                start_post_index=start_post_index,
+                explicit_format=explicit_format,
+                explicit_mbti=explicit_mbti,
+            )
+            continue
 
-    for base_dir, grouped_packages in packages_by_base_dir.items():
-        _write_series_summary(base_dir, grouped_packages)
+        # Written after the render so a topic that gets retired does not leave
+        # a series_plan.json behind for a series that produced no posts.
+        packages_by_base_dir: dict[Path, list[ContentPackage]] = {}
+        for package in packages:
+            packages_by_base_dir.setdefault(_topic_output_dir(config.output_dir, package), []).append(package)
+        for base_dir, grouped_packages in packages_by_base_dir.items():
+            _write_series_summary(base_dir, grouped_packages)
+        return results
 
-    results = [
-        render_content_package(
-            package,
-            config,
-            _bundle_output_dir(_topic_output_dir(config.output_dir, package), package),
-        )
-        for package in packages
-    ]
-    return results
+    raise RuntimeError("unreachable: the retirement loop either returns or raises")
 
 
 def _summary_paths(output_dir: Path) -> list[Path]:

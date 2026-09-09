@@ -9,7 +9,7 @@ from typing import Callable
 
 from mbti_tiktok_bot.config import AppConfig
 
-DEFAULT_DAEMON_TIMES = ("08:00", "12:00", "18:00")
+DEFAULT_DAEMON_TIMES = ("08:00", "12:00", "16:00", "20:00")
 MAX_BACKLOG_DAYS = 1
 
 

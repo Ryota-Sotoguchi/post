@@ -1,5 +1,5 @@
 {
-  "next_post_index": 175,
+  "next_post_index": 212,
   "topic_history": [
     {
       "key": "generated_d5597e3e07c0",
@@ -93,10 +93,10 @@
       "source": "procedural"
     },
     {
-      "key": "generated_005c8f74ee56",
-      "name": "が距離を許す時に出る素を見せる境界線",
-      "theme": "人間関係",
-      "blueprint": "friendship_shift",
+      "key": "generated_0e924d3a9329",
+      "name": "が限界前に見せる防衛反応",
+      "theme": "心理",
+      "blueprint": "stress_signal",
       "source": "procedural"
     },
     {
@@ -104,13 +104,6 @@
       "name": "のLINEに出る踏み込みたい時の文面",
       "theme": "恋愛",
       "blueprint": "line_shift",
-      "source": "procedural"
-    },
-    {
-      "key": "generated_0e924d3a9329",
-      "name": "が限界前に見せる防衛反応",
-      "theme": "心理",
-      "blueprint": "stress_signal",
       "source": "procedural"
     },
     {
@@ -140,6 +133,16 @@
       "theme": "コミュニケーション",
       "blueprint": "communication_style",
       "source": "procedural"
+    }
+  ],
+  "retired_topics": [
+    {
+      "key": "generated_005c8f74ee56",
+      "name": "が距離を許す時に出る素を見せる境界線",
+      "theme": "人間関係",
+      "blueprint": "friendship_shift",
+      "source": "procedural",
+      "retired_reason": "Generated package overlaps an existing package by 80% or more: INTJが距離を許す時に出る素を見せる境界線 vs INTJが仲良くなるほど出る素の反応 (/home/alr_k/projects/tiktok/out/が仲良くなるほど出る素の反応/post_01_INTJ/package.json)"
     }
   ]
 }

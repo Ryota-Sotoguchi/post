@@ -739,20 +739,35 @@ def load_series_state(config: AppConfig) -> dict[str, object]:
     data = json.loads(state_path.read_text(encoding="utf-8"))
     next_post_index = int(data.get("next_post_index", 0))
     topic_history = _normalize_topic_history(data.get("topic_history", []), next_post_index, config.topic_depth)
-    return {"next_post_index": next_post_index, "topic_history": topic_history}
+    retired = [topic for topic in data.get("retired_topics", []) if isinstance(topic, dict)]
+    return {
+        "next_post_index": next_post_index,
+        "topic_history": topic_history,
+        "retired_topics": retired,
+    }
 
 
-def save_series_state(config: AppConfig, next_post_index: int, topic_history: list[dict[str, str]] | None = None) -> Path:
+def save_series_state(
+    config: AppConfig,
+    next_post_index: int,
+    topic_history: list[dict[str, str]] | None = None,
+    retired_topics: list[dict[str, str]] | None = None,
+) -> Path:
     state_path = _state_path(config)
     state_path.parent.mkdir(parents=True, exist_ok=True)
+    stored = load_series_state(config)
     current_topic_history = topic_history
     if current_topic_history is None:
-        current_topic_history = load_series_state(config).get("topic_history", [])
+        current_topic_history = stored.get("topic_history", [])
+    current_retired = retired_topics
+    if current_retired is None:
+        current_retired = stored.get("retired_topics", [])
     state_path.write_text(
         json.dumps(
             {
                 "next_post_index": next_post_index,
                 "topic_history": current_topic_history,
+                "retired_topics": current_retired,
             },
             ensure_ascii=False,
             indent=2,
@@ -964,9 +979,21 @@ def _generate_topics_with_llm(config: AppConfig, history: list[dict[str, str]], 
     return _balance_topics_by_theme(topics, previous_theme=_topic_theme(history[-1]) if history else None)
 
 
-def _expand_topic_history(config: AppConfig, history: list[dict[str, str]], minimum_length: int) -> list[dict[str, str]]:
+def _expand_topic_history(
+    config: AppConfig,
+    history: list[dict[str, str]],
+    minimum_length: int,
+    blocked: list[dict[str, str]] | None = None,
+) -> list[dict[str, str]]:
+    """Grow the history to minimum_length.
+
+    `blocked` holds retired topics: they are gone from the rotation but their
+    names still have to be off the table, or the generator proposes the very
+    topic that was just thrown out.
+    """
     expanded = list(history)
-    used_signatures = _history_signatures(expanded)
+    blocked_topics = list(blocked or [])
+    used_signatures = _history_signatures(expanded) | _history_signatures(blocked_topics)
 
     while len(expanded) < minimum_length and len(expanded) < len(BASE_TOPICS):
         candidate = dict(BASE_TOPICS[len(expanded)])
@@ -983,13 +1010,13 @@ def _expand_topic_history(config: AppConfig, history: list[dict[str, str]], mini
                 TOPIC_GENERATION_BLOCK_SIZE,
                 used_signatures,
                 previous_theme=_topic_theme(expanded[-1]) if expanded else None,
-                used_topic_names=[topic["name"] for topic in expanded],
+                used_topic_names=[topic["name"] for topic in expanded + blocked_topics],
                 topic_depth=config.topic_depth,
             )
         if not generated_topics:
             raise RuntimeError("No additional topics could be generated")
         expanded.extend(generated_topics)
-        used_signatures = _history_signatures(expanded)
+        used_signatures = _history_signatures(expanded) | _history_signatures(blocked_topics)
     return expanded
 
 
@@ -999,7 +1026,9 @@ def _ensure_topic_history(config: AppConfig, cycle_index: int) -> list[str]:
     if not history and cycle_index >= 0:
         history = _bootstrap_topic_history(int(state["next_post_index"]))
 
-    history = _expand_topic_history(config, history, cycle_index + 1)
+    history = _expand_topic_history(
+        config, history, cycle_index + 1, blocked=state.get("retired_topics", [])
+    )
 
     if history != state.get("topic_history", []):
         save_series_state(config, int(state["next_post_index"]), history)
@@ -1009,6 +1038,34 @@ def _ensure_topic_history(config: AppConfig, cycle_index: int) -> list[str]:
 def topic_for_post_index(config: AppConfig, post_index: int) -> dict[str, str]:
     cycle_index = post_index // SERIES_TOTAL_POSTS
     history = _ensure_topic_history(config, cycle_index)
+    return dict(history[cycle_index])
+
+
+def retire_topic_at(config: AppConfig, cycle_index: int, reason: str) -> dict[str, str]:
+    """Drop the topic at cycle_index from the rotation and return its successor.
+
+    A topic whose copy lands on top of an earlier one is not salvageable by
+    drawing a different MBTI type: all 16 would collide the same way. The slot
+    used to die here with a ValueError and then retry the same topic on the
+    next trigger, which is how generation stopped for three days.
+
+    The record moves to `retired_topics`, which keeps its name blocked for
+    future generation without leaving it in the rotation to be reached again.
+    """
+    state = load_series_state(config)
+    history = [dict(topic) for topic in state.get("topic_history", [])]
+    retired = [dict(topic) for topic in state.get("retired_topics", [])]
+    if not 0 <= cycle_index < len(history):
+        raise IndexError(f"No topic at cycle index {cycle_index}")
+
+    dropped = history.pop(cycle_index)
+    dropped["retired_reason"] = reason
+    retired.append(dropped)
+
+    # Removing an entry shifts every later topic down one, so the hole is
+    # already filled unless it was the last one; top the tail back up.
+    history = _expand_topic_history(config, history, cycle_index + 1, blocked=retired)
+    save_series_state(config, int(state["next_post_index"]), history, retired)
     return dict(history[cycle_index])
 
 

@@ -1,4 +1,8 @@
 {
-  "current_date": "2026-08-26",
-  "completed_slots": []
+  "current_date": "2026-09-05",
+  "completed_slots": [
+    "08:00",
+    "12:00",
+    "18:00"
+  ]
 }
