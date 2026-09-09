@@ -4,6 +4,7 @@ import hashlib
 import json
 import shutil
 from dataclasses import dataclass, replace
+from functools import lru_cache
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
@@ -62,6 +63,128 @@ PROTECTED_JAPANESE_PHRASES = (
 )
 
 
+# Pillow's ImageDraw does not antialias polygons, arcs, outlines or rounded
+# corners, so everything drawn here lands with stair-stepped edges. Rendering
+# at RENDER_SCALE and downsampling once with LANCZOS at compose time fixes that
+# without touching the several hundred coordinate literals in this module:
+# ScaledDraw takes logical 1080x1920 coordinates and scales them on the way
+# through. Set to 1 to render exactly as before.
+RENDER_SCALE = 1
+
+
+def _scale_xy(xy, scale: int):
+    """Scale an ImageDraw coordinate argument in any shape this module uses.
+
+    Handles a flat 2- or 4-tuple, and a list or tuple of points.
+    """
+    if scale == 1:
+        return xy
+    if isinstance(xy[0], (list, tuple)):
+        return [tuple(round(value * scale) for value in point) for point in xy]
+    return tuple(round(value * scale) for value in xy)
+
+
+@lru_cache(maxsize=512)
+def _device_font(path: str, index: int, size: int) -> ImageFont.FreeTypeFont:
+    return ImageFont.truetype(path, size=size, index=index)
+
+
+@lru_cache(maxsize=1)
+def _measure_draw() -> ImageDraw.ImageDraw:
+    """One scratch 1x context for every text measurement in this module.
+
+    Measuring has to stay at logical scale. The shrink-to-fit ladder in
+    _fit_wrapped_text steps by 2, so measuring at 2x lets it settle on sizes
+    the 1x ladder cannot reach, and the chosen font size and line breaks drift.
+    """
+    return ImageDraw.Draw(Image.new("L", (1, 1)))
+
+
+class ScaledDraw:
+    """Draws in logical 1080x1920 coordinates onto a scale-times-larger canvas.
+
+    Only the methods this module actually draws with are forwarded. Anything
+    else raises: a call that slipped through unscaled would draw at 1x into a
+    2x canvas and produce a slide that looks almost right. Measurement is
+    deliberately absent - use _measure_draw().
+    """
+
+    __slots__ = ("image", "scale", "_draw")
+
+    def __init__(self, image: Image.Image, scale: int = RENDER_SCALE) -> None:
+        self.image = image
+        self.scale = scale
+        self._draw = ImageDraw.Draw(image)
+
+    def __getattr__(self, name: str):
+        raise AttributeError(
+            f"ScaledDraw does not forward {name!r}. Add an explicit wrapper so its "
+            "coordinates are scaled, or measure through _measure_draw()."
+        )
+
+    # -- sibling layers and units --------------------------------------------
+    def layer(self, fill: tuple[int, int, int, int] = (0, 0, 0, 0)) -> Image.Image:
+        return Image.new("RGBA", self.image.size, fill)
+
+    def sub(self, image: Image.Image) -> "ScaledDraw":
+        return ScaledDraw(image, self.scale)
+
+    def blur(self, radius: float) -> ImageFilter.Filter:
+        return ImageFilter.GaussianBlur(radius * self.scale)
+
+    def px(self, value: float) -> int:
+        """Logical to device, for paste/alpha_composite offsets and sizes."""
+        return round(value * self.scale)
+
+    def _w(self, width: int) -> int:
+        return max(1, round(width * self.scale)) if width else width
+
+    def _font(self, font):
+        if font is None or self.scale == 1:
+            return font
+        return _device_font(font.path, font.index, round(font.size * self.scale))
+
+    # -- geometry -------------------------------------------------------------
+    def rounded_rectangle(self, xy, radius=0, fill=None, outline=None, width=1, **kwargs):
+        self._draw.rounded_rectangle(
+            _scale_xy(xy, self.scale), radius=radius * self.scale,
+            fill=fill, outline=outline, width=self._w(width), **kwargs)
+
+    def rectangle(self, xy, fill=None, outline=None, width=1):
+        self._draw.rectangle(_scale_xy(xy, self.scale), fill=fill, outline=outline, width=self._w(width))
+
+    def ellipse(self, xy, fill=None, outline=None, width=1):
+        self._draw.ellipse(_scale_xy(xy, self.scale), fill=fill, outline=outline, width=self._w(width))
+
+    def polygon(self, xy, fill=None, outline=None, width=1):
+        self._draw.polygon(_scale_xy(xy, self.scale), fill=fill, outline=outline, width=self._w(width))
+
+    def line(self, xy, fill=None, width=0, joint=None):
+        self._draw.line(_scale_xy(xy, self.scale), fill=fill, width=self._w(width), joint=joint)
+
+    # start and end are angles in degrees. Scaling them would rotate the shape.
+    def arc(self, xy, start, end, fill=None, width=1):
+        self._draw.arc(_scale_xy(xy, self.scale), start, end, fill=fill, width=self._w(width))
+
+    def pieslice(self, xy, start, end, fill=None, outline=None, width=1):
+        self._draw.pieslice(_scale_xy(xy, self.scale), start, end, fill=fill, outline=outline, width=self._w(width))
+
+    # -- text -----------------------------------------------------------------
+    def text(self, xy, text, fill=None, font=None, anchor=None, spacing=4, align="left",
+             stroke_width=0, stroke_fill=None):
+        self._draw.text(
+            _scale_xy(xy, self.scale), text, fill=fill, font=self._font(font), anchor=anchor,
+            spacing=spacing * self.scale, align=align,
+            stroke_width=round(stroke_width * self.scale), stroke_fill=stroke_fill)
+
+    def multiline_text(self, xy, text, fill=None, font=None, anchor=None, spacing=4, align="left",
+                       stroke_width=0, stroke_fill=None):
+        self._draw.multiline_text(
+            _scale_xy(xy, self.scale), text, fill=fill, font=self._font(font), anchor=anchor,
+            spacing=spacing * self.scale, align=align,
+            stroke_width=round(stroke_width * self.scale), stroke_fill=stroke_fill)
+
+
 def _load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont:
     return load_font(size, bold=bold)
 
@@ -87,9 +210,11 @@ def _make_gradient(width: int, height: int, start_hex: str, end_hex: str) -> Ima
     return image.convert("RGBA")
 
 
-def _wrap_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
+def _wrap_text(draw, text: str, font: ImageFont.ImageFont, max_width: int) -> str:
+    scratch = _measure_draw()
+
     def measure(value: str) -> int:
-        return draw.textbbox((0, 0), value, font=font)[2]
+        return scratch.textbbox((0, 0), value, font=font)[2]
 
     return wrap_text(measure, text, max_width)
 
@@ -147,7 +272,7 @@ def _fit_wrapped_text(
         wrapped = _wrap_text(draw, text, font, max_width)
         breaks_phrase = _breaks_protected_japanese_phrase(text, wrapped)
         for line_spacing in spacing_candidates:
-            text_box = draw.multiline_textbbox((0, 0), wrapped, font=font, spacing=line_spacing)
+            text_box = _measure_draw().multiline_textbbox((0, 0), wrapped, font=font, spacing=line_spacing)
             text_width = text_box[2] - text_box[0]
             text_height = text_box[3] - text_box[1]
             overflow = max(text_width - max_width, 0) + max(text_height - max_height, 0)
@@ -173,7 +298,7 @@ def _measure_multiline_text(
     font: ImageFont.ImageFont,
     spacing: int,
 ) -> tuple[int, int]:
-    text_box = draw.multiline_textbbox((0, 0), text, font=font, spacing=spacing)
+    text_box = _measure_draw().multiline_textbbox((0, 0), text, font=font, spacing=spacing)
     return text_box[2] - text_box[0], text_box[3] - text_box[1]
 
 
@@ -678,7 +803,7 @@ def _draw_topic_illustration_stage(
     content_package: ContentPackage,
 ) -> None:
     """Draw topic-specific scenery so a reused source character becomes a new illustration."""
-    draw = ImageDraw.Draw(image)
+    draw = ScaledDraw(image)
     left, top, right, bottom = box
     width = right - left
     height = bottom - top
@@ -768,7 +893,7 @@ def _draw_topic_illustration_stage(
 
 def _draw_label(draw: ImageDraw.ImageDraw, box: tuple[int, int, int, int], text: str, font, fill, text_fill) -> None:
     draw.rounded_rectangle(box, radius=34, fill=fill)
-    text_box = draw.textbbox((0, 0), text, font=font)
+    text_box = _measure_draw().textbbox((0, 0), text, font=font)
     text_x = box[0] + ((box[2] - box[0]) - (text_box[2] - text_box[0])) // 2
     text_y = box[1] + ((box[3] - box[1]) - (text_box[3] - text_box[1])) // 2 - 2
     draw.text((text_x, text_y), text, font=font, fill=text_fill)
@@ -781,16 +906,17 @@ def _draw_shadowed_round_box(
     fill: tuple[int, int, int, int],
     shadow_alpha: int = 120,
 ) -> None:
-    shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow_layer)
+    canvas = ScaledDraw(image)
+    shadow_layer = canvas.layer()
+    shadow_draw = canvas.sub(shadow_layer)
     shadow_draw.rounded_rectangle(
         (box[0] + 10, box[1] + 16, box[2] + 10, box[3] + 16),
         radius=radius,
         fill=(0, 0, 0, shadow_alpha),
     )
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(22))
+    shadow_layer = shadow_layer.filter(canvas.blur(22))
     image.alpha_composite(shadow_layer)
-    ImageDraw.Draw(image).rounded_rectangle(box, radius=radius, fill=fill)
+    canvas.rounded_rectangle(box, radius=radius, fill=fill)
 
 
 def _draw_luxury_round_box(
@@ -803,19 +929,20 @@ def _draw_luxury_round_box(
     shadow_alpha: int = 150,
 ) -> None:
     """Draw a layered premium card with glow, bevel lines, and corner jewels."""
-    glow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow_layer)
+    canvas = ScaledDraw(image)
+    glow_layer = canvas.layer()
+    glow_draw = canvas.sub(glow_layer)
     glow_draw.rounded_rectangle(
         (box[0] - 5, box[1] - 5, box[2] + 5, box[3] + 5),
         radius=radius + 5,
         outline=_hex_to_rgba(light, 118),
         width=12,
     )
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(18))
+    glow_layer = glow_layer.filter(canvas.blur(18))
     image.alpha_composite(glow_layer)
 
     _draw_shadowed_round_box(image, box, radius, fill, shadow_alpha)
-    card_draw = ImageDraw.Draw(image)
+    card_draw = ScaledDraw(image)
     card_draw.rounded_rectangle(box, radius=radius, outline=_hex_to_rgba(light, 170), width=4)
     inner = (box[0] + 11, box[1] + 11, box[2] - 11, box[3] - 11)
     card_draw.rounded_rectangle(inner, radius=max(radius - 11, 8), outline=(255, 255, 255, 48), width=2)
@@ -916,7 +1043,7 @@ def _draw_thumbnail_overlay(
     card_bottom = min(card[3], max(card[1] + 430, title_area_top + title_height + 174))
     cover_card = (card[0], card[1], card[2], card_bottom)
     _draw_luxury_round_box(image, cover_card, 72, (8, 15, 38, 188), accent, light, 168)
-    draw = ImageDraw.Draw(image)
+    draw = ScaledDraw(image)
     draw.rounded_rectangle(
         (cover_card[0] + 22, title_area_top - 16, cover_card[0] + 30, card_bottom - 104),
         radius=4,
@@ -1084,7 +1211,7 @@ def _draw_scene_style_bottom_board(
     draw.multiline_text((126, content_top), title, font=title_font, fill="white", spacing=title_spacing)
     draw.multiline_text((126, content_top + title_height + 48), body, font=body_font, fill=(245, 245, 245), spacing=body_spacing)
     counter_text = f"{scene_index + 1:02d} / {scene_total}"
-    text_box = draw.textbbox((0, 0), counter_text, font=fonts["count"])
+    text_box = _measure_draw().textbbox((0, 0), counter_text, font=fonts["count"])
     draw.text((944 - (text_box[2] - text_box[0]), 1108), counter_text, font=fonts["count"], fill=_hex_to_rgba(light, 230))
 
 
@@ -1237,10 +1364,10 @@ def _draw_scene_style_closer(
     fonts: dict[str, ImageFont.ImageFont],
 ) -> None:
     glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
+    glow_draw = ScaledDraw(glow)
     glow_draw.ellipse((54, 860, 454, 1260), fill=_hex_to_rgba(light, 96))
     glow_draw.ellipse((746, 548, 1088, 890), fill=_hex_to_rgba(accent, 92))
-    glow = glow.filter(ImageFilter.GaussianBlur(32))
+    glow = glow.filter(glow_draw.blur(32))
     image.alpha_composite(glow)
 
     _draw_shadowed_round_box(image, (78, 620, 1008, 1668), 74, (255, 255, 255, 236), 124)
@@ -1315,7 +1442,7 @@ def _draw_pulse_thumbnail_overlay(
 ) -> None:
     card = PULSE_THUMBNAIL_CARD
     _draw_luxury_round_box(image, card, 64, (248, 255, 250, 247), accent, light, 148)
-    draw = ImageDraw.Draw(image)
+    draw = ScaledDraw(image)
 
     label_y = card[1] + 42
     _draw_label(draw, (112, label_y, 432, label_y + 78), f"{content_package.mbti_type} / {content_package.archetype_name}", fonts["scene_tag"], _hex_to_rgba(accent), "white")
@@ -1622,18 +1749,19 @@ def _draw_luxury_canvas_details(
 def _build_background_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
     width = config.video_width
     height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
     background, accent, light = GROUP_PALETTES[content_package.group_name]
-    image = _make_gradient(width, height, background, accent)
+    image = _make_gradient(device[0], device[1], background, accent)
 
     blur_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    blur_draw = ImageDraw.Draw(blur_layer)
+    blur_draw = ScaledDraw(blur_layer)
     blur_draw.ellipse((-120, 1280, 520, 1900), fill=_hex_to_rgba(light, 80))
     blur_draw.ellipse((670, 80, 1220, 780), fill=_hex_to_rgba(accent, 85))
     blur_draw.rounded_rectangle((560, 420, 1130, 1600), radius=110, fill=(255, 255, 255, 20))
-    blur_layer = blur_layer.filter(ImageFilter.GaussianBlur(48))
+    blur_layer = blur_layer.filter(blur_draw.blur(48))
     image.alpha_composite(blur_layer)
 
-    draw = ImageDraw.Draw(image)
+    draw = ScaledDraw(image)
     motif = _motif_key(content_package)
     if motif == "chat":
         for y in range(240, height - 240, 180):
@@ -1668,7 +1796,7 @@ def _build_background_layer(content_package: ContentPackage, config: AppConfig) 
             )
 
     luxury_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    luxury_draw = ImageDraw.Draw(luxury_layer)
+    luxury_draw = ScaledDraw(luxury_layer)
     _draw_luxury_canvas_details(
         luxury_draw,
         width,
@@ -1690,9 +1818,10 @@ def _build_text_layer(
 ) -> Image.Image:
     width = config.video_width
     height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
     background, accent, light = GROUP_PALETTES[content_package.group_name]
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    image = Image.new("RGBA", device, (0, 0, 0, 0))
+    draw = ScaledDraw(image)
 
     # Every title and body font is resolved inside _fit_text_block, which picks
     # a size to fit its box. Only these three are drawn at a fixed size.
@@ -1723,16 +1852,17 @@ def _build_character_layer(
 ) -> Image.Image:
     width = config.video_width
     height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
     _, accent, light = GROUP_PALETTES[content_package.group_name]
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    image = Image.new("RGBA", device, (0, 0, 0, 0))
+    draw = ScaledDraw(image)
 
     box = _scene_character_box(content_package, scene_index)
     glow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow_layer)
+    glow_draw = ScaledDraw(glow_layer)
     glow_draw.ellipse((box[0] - 40, box[1] + 30, box[2] + 50, box[3] - 40), fill=_hex_to_rgba(accent, 120))
     glow_draw.ellipse((box[0] + 20, box[1] - 90, box[2] - 20, box[1] + 380), fill=_hex_to_rgba(light, 85))
-    glow_layer = glow_layer.filter(ImageFilter.GaussianBlur(52))
+    glow_layer = glow_layer.filter(glow_draw.blur(52))
     image.alpha_composite(glow_layer)
 
     _draw_topic_illustration_stage(image, box, accent, light, content_package)
@@ -1755,6 +1885,11 @@ def _build_character_layer(
     composition_variant = topic_variant if is_thumbnail else (topic_variant + scene_index * 3) % 8
     frame_width = box[2] - box[0]
     frame_height = box[3] - box[1]
+    # box and the frame drawing below are logical, but the source art, the
+    # masks and every paste offset are real pixels. Keep the two apart.
+    dev_box = tuple(draw.px(value) for value in box)
+    dev_width = dev_box[2] - dev_box[0]
+    dev_height = dev_box[3] - dev_box[1]
 
     if has_transparency:
         alpha_bbox = source.getchannel("A").getbbox()
@@ -1763,7 +1898,7 @@ def _build_character_layer(
         thumbnail_scales = (0.9, 0.94, 0.92, 0.96, 0.91, 0.95, 0.93, 0.97)
         content_scales = (0.76, 0.86, 1.0, 0.82, 0.94, 0.78, 0.9, 0.84)
         scale = thumbnail_scales[composition_variant] if is_thumbnail else content_scales[composition_variant]
-        max_size = (max(int(frame_width * scale), 1), max(int(frame_height * scale), 1))
+        max_size = (max(int(dev_width * scale), 1), max(int(dev_height * scale), 1))
         source.thumbnail(max_size, Image.Resampling.LANCZOS)
         if not is_thumbnail and composition_variant in {0, 2, 4, 7}:
             source = ImageOps.mirror(source)
@@ -1772,7 +1907,7 @@ def _build_character_layer(
         angle = thumbnail_angles[composition_variant] if is_thumbnail else content_angles[composition_variant]
         source = source.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True)
         shadow = Image.new("RGBA", source.size, (0, 0, 0, 0))
-        shadow_alpha = source.getchannel("A").filter(ImageFilter.GaussianBlur(18))
+        shadow_alpha = source.getchannel("A").filter(draw.blur(18))
         shadow.paste((0, 0, 0, 130), (0, 0), shadow_alpha)
         thumbnail_x_bias = (-0.04, 0.05, -0.02, 0.04, -0.03, 0.02, 0.04, -0.01)
         thumbnail_y_bias = (0.02, -0.01, 0.04, 0.0, 0.05, -0.02, 0.03, 0.01)
@@ -1780,16 +1915,16 @@ def _build_character_layer(
         content_y_bias = (0.1, -0.05, 0.12, -0.04, 0.14, -0.08, 0.08, 0.04)
         x_bias = thumbnail_x_bias[composition_variant] if is_thumbnail else content_x_bias[composition_variant]
         y_bias = thumbnail_y_bias[composition_variant] if is_thumbnail else content_y_bias[composition_variant]
-        x = box[0] + (frame_width - source.width) // 2 + int(frame_width * x_bias)
-        y = box[1] + (frame_height - source.height) // 2 + int(frame_height * y_bias)
-        image.alpha_composite(shadow, (x + 16, y + 20))
+        x = dev_box[0] + (dev_width - source.width) // 2 + int(dev_width * x_bias)
+        y = dev_box[1] + (dev_height - source.height) // 2 + int(dev_height * y_bias)
+        image.alpha_composite(shadow, (x + draw.px(16), y + draw.px(20)))
         image.alpha_composite(source, (x, y))
     else:
         centering_x = (0.34, 0.66, 0.5, 0.42, 0.58, 0.28, 0.72, 0.5)[composition_variant]
         centering_y = (0.5, 0.42, 0.58, 0.36, 0.64, 0.48, 0.54, 0.4)[composition_variant]
         portrait = ImageOps.fit(
             source.convert("RGB"),
-            (frame_width - 32, frame_height - 32),
+            (dev_width - draw.px(32), dev_height - draw.px(32)),
             method=Image.Resampling.LANCZOS,
             centering=(centering_x, centering_y),
         )
@@ -1809,9 +1944,9 @@ def _build_character_layer(
             )
 
         shadow_layer = Image.new("RGBA", image.size, (0, 0, 0, 0))
-        shadow_draw = ImageDraw.Draw(shadow_layer)
+        shadow_draw = ScaledDraw(shadow_layer)
         shadow_draw.rounded_rectangle((box[0] + 14, box[1] + 18, box[2] + 14, box[3] + 18), radius=56, fill=(0, 0, 0, 118))
-        shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(24))
+        shadow_layer = shadow_layer.filter(draw.blur(24))
         image.alpha_composite(shadow_layer)
 
         if frame_style == 0:
@@ -1820,13 +1955,13 @@ def _build_character_layer(
             draw.ellipse(box, fill=(255, 255, 255, 235), outline=light, width=6)
         else:
             draw.polygon(((box[0] + frame_width // 2, box[1]), (box[2], box[1] + frame_height // 5), (box[2], box[3]), (box[0], box[3]), (box[0], box[1] + frame_height // 5)), fill=(255, 255, 255, 235), outline=light)
-        image.paste(portrait.convert("RGBA"), (box[0] + 16, box[1] + 16), mask)
+        image.paste(portrait.convert("RGBA"), (dev_box[0] + draw.px(16), dev_box[1] + draw.px(16)), mask)
 
     if is_thumbnail:
         badge_font = _load_font(42, bold=True)
         badge_box = (box[0] + 60, box[3] - 70, box[2] - 50, box[3] + 30)
         draw.rounded_rectangle(badge_box, radius=36, fill=(255, 255, 255, 230))
-        badge_width = draw.textbbox((0, 0), content_package.mbti_type, font=badge_font)[2]
+        badge_width = _measure_draw().textbbox((0, 0), content_package.mbti_type, font=badge_font)[2]
         badge_x = badge_box[0] + ((badge_box[2] - badge_box[0]) - badge_width) // 2
         draw.text((badge_x, badge_box[1] + 22), content_package.mbti_type, font=badge_font, fill=accent)
     else:
@@ -1846,9 +1981,10 @@ def _build_character_layer(
 def _build_accent_layer(content_package: ContentPackage, config: AppConfig) -> Image.Image:
     width = config.video_width
     height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
     _, accent, light = GROUP_PALETTES[content_package.group_name]
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    image = Image.new("RGBA", device, (0, 0, 0, 0))
+    draw = ScaledDraw(image)
 
     motif = _motif_key(content_package)
     if motif == "chat":
@@ -1886,9 +2022,10 @@ def _build_scene_accent_layer(
 ) -> Image.Image:
     width = config.video_width
     height = config.video_height
+    device = (width * RENDER_SCALE, height * RENDER_SCALE)
     background, accent, light = GROUP_PALETTES[content_package.group_name]
-    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(image)
+    image = Image.new("RGBA", device, (0, 0, 0, 0))
+    draw = ScaledDraw(image)
     scene = content_package.scenes[scene_index]
     style_key = _scene_style_key(content_package, scene, scene_index)
 
@@ -1919,18 +2056,30 @@ def _build_scene_accent_layer(
         draw.ellipse((858, 362, 978, 482), fill=_hex_to_rgba(light, 98))
         draw.ellipse((108, 1490, 212, 1594), fill=_hex_to_rgba(accent, 86))
 
-    glow_layer = image.filter(ImageFilter.GaussianBlur(14))
-    image.alpha_composite(glow_layer)
+    # The glow belongs under the shapes. Compositing the blur back onto the
+    # image it was made from drew every accent twice and squared its alpha,
+    # which is why these shapes read heavier than the values here suggest.
+    glow = Image.new("RGBA", image.size, (0, 0, 0, 0))
+    glow.alpha_composite(image.filter(draw.blur(14)))
+    glow.alpha_composite(image)
+    image = glow
     base_overlay = _build_accent_layer(content_package, config)
     base_overlay.alpha_composite(image)
     return base_overlay
 
 
-def _compose_scene(layers: list[Image.Image], destination: Path) -> Path:
-    """Flatten the scene's layers onto the background and write the slide."""
+def _compose_scene(layers: list[Image.Image], size: tuple[int, int], destination: Path) -> Path:
+    """Flatten the scene's layers onto the background and write the slide.
+
+    The layers are composited at render scale and downsampled once, here.
+    Resampling each layer separately would run the alpha edges through LANCZOS
+    four times and can seam where two layers abut.
+    """
     canvas = layers[0]
     for layer in layers[1:]:
         canvas.alpha_composite(layer)
+    if canvas.size != size:
+        canvas = canvas.resize(size, Image.Resampling.LANCZOS)
     destination.parent.mkdir(parents=True, exist_ok=True)
     canvas.convert("RGB").save(destination)
     return destination
@@ -2010,6 +2159,7 @@ def generate_scene_assets(content_package: ContentPackage, config: AppConfig, sl
         # by every scene.
         _compose_scene(
             [background.copy(), accent, character, text],
+            (config.video_width, config.video_height),
             slides_dir / f"slide_{index + 1:02d}.png",
         )
         assets.append(
