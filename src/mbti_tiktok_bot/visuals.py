@@ -369,6 +369,29 @@ def _slam_body_layout(body_card_top: int, body_height: int) -> tuple[int, int]:
     return body_y, body_card_bottom
 
 
+def _shifted_clear_of(
+    box: tuple[int, int, int, int],
+    obstacle: tuple[int, int, int, int],
+    *,
+    gap: int = 16,
+    canvas_width: int = 1080,
+    margin: int = 24,
+) -> tuple[int, int, int, int]:
+    """Slide box right until it clears obstacle, if the two actually overlap.
+
+    Returns box unchanged when there is no overlap, and refuses to push it off
+    the canvas: a badge half outside the frame is worse than one that touches.
+    """
+    if box[0] >= obstacle[2] or box[2] <= obstacle[0]:
+        return box
+    if box[1] >= obstacle[3] or box[3] <= obstacle[1]:
+        return box
+    shift = obstacle[2] + gap - box[0]
+    if box[2] + shift > canvas_width - margin:
+        return box
+    return _offset_box(box, dx=shift)
+
+
 def _avoid_title_panel_box(
     content_package: ContentPackage,
     box: tuple[int, int, int, int],
@@ -774,10 +797,24 @@ def _character_box(content_package: ContentPackage) -> tuple[int, int, int, int]
     return _layout_profile(content_package).character_box
 
 
+# Content slides keep the character in the upper right, clear of the copy
+# cards that own the lower two thirds. The thumbnail box is much taller, so
+# only its horizontal placement carries over - that is the part that varies by
+# motif, and using one hardcoded box made every motif's body slides identical.
+CONTENT_CHARACTER_TOP = 190
+CONTENT_CHARACTER_BOTTOM = 980
+
+
 def _scene_character_box(content_package: ContentPackage, scene_index: int) -> tuple[int, int, int, int]:
     if scene_index == 0 or _is_pulse_layout(content_package):
         return _character_box(content_package)
-    return (720, 190, 1038, 980)
+    thumbnail_box = _character_box(content_package)
+    left = min(max(thumbnail_box[0], 636), 764)
+    right = min(max(thumbnail_box[2], left + 290), 1044)
+    # A small drift down the carousel so consecutive slides are not stamped
+    # from the same position.
+    drift = (_visual_seed(content_package) // 7 + scene_index * 13) % 40 - 20
+    return (left, CONTENT_CHARACTER_TOP + drift, right, CONTENT_CHARACTER_BOTTOM + drift)
 
 
 def _resolve_illustration_path(config: AppConfig, mbti_type: str) -> Path | None:
@@ -1975,6 +2012,10 @@ def _build_character_layer(
     if is_thumbnail:
         badge_font = _load_font(42, bold=True)
         badge_box = (box[0] + 60, box[3] - 70, box[2] - 50, box[3] + 30)
+        # The cover card is drawn in the text layer, which lands on top of this
+        # one, so a badge that overlaps it gets clipped by it. Only the grid
+        # motif reaches far enough right for that to happen.
+        badge_box = _shifted_clear_of(badge_box, _thumbnail_layout(content_package)["card"])
         draw.rounded_rectangle(badge_box, radius=36, fill=(255, 255, 255, 230))
         badge_width = _measure_draw().textbbox((0, 0), content_package.mbti_type, font=badge_font)[2]
         badge_x = badge_box[0] + ((badge_box[2] - badge_box[0]) - badge_width) // 2
