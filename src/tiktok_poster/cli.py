@@ -432,7 +432,7 @@ def _build_parser() -> argparse.ArgumentParser:
     daily = sub.add_parser("daily", help="Re-authorize and send the day's batch in one go")
     daily.add_argument(
         "--redirect-uri",
-        default="https://ryota-sotoguchi.github.io/tiktok/",
+        default="https://ryota-sotoguchi.github.io/post/",
         help="Must match the app's registered redirect URI",
     )
     daily.add_argument("--count", type=int, help="How many to send (default POSTS_PER_DAY)")

@@ -41,7 +41,7 @@ jobs:
           # public on a public repo, so keep it out of the log all the same.
           echo "::add-mask::$REDIRECT_URL"
           python -m tiktok_poster authorize \
-            --redirect-uri "https://ryota-sotoguchi.github.io/tiktok/" \
+            --redirect-uri "https://ryota-sotoguchi.github.io/post/" \
             --code "$REDIRECT_URL" \
             --sync-secret
 

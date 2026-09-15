@@ -103,7 +103,7 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 
 - Pages を有効化（`main` / `/docs`）
 - Secrets: `TIKTOK_CLIENT_KEY` `TIKTOK_CLIENT_SECRET` `TIKTOK_ACCESS_TOKEN` `GH_PAT`
-- 開発者ポータルのリダイレクト URI と URL プレフィックスを `https://ryota-sotoguchi.github.io/tiktok/` 配下で検証する
+- 開発者ポータルのリダイレクト URI と URL プレフィックスを `https://ryota-sotoguchi.github.io/post/` 配下で検証する
 
 ## 使い方
 
@@ -223,7 +223,7 @@ cd ~/projects/tiktok && .venv-linux/bin/python -m tiktok_poster daily --sync-sec
 取得したアクセストークンが GitHub Actions に渡り、その日の送信が自動で走る。
 あとは届いた下書きを TikTok アプリで公開する。
 
-スマホからやる場合は `https://ryota-sotoguchi.github.io/tiktok/` を開く。
+スマホからやる場合は `https://ryota-sotoguchi.github.io/post/` を開く。
 承認してリダイレクト先の URL をコピーし、`authorize.yml` の workflow_dispatch に貼る。
 
 ### なぜ1日1回の承認が要るのか
