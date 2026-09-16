@@ -51,6 +51,12 @@ def push(config: Config, message: str, *paths: Path) -> bool:
     _git(config, "add", "--", *targets)
     _git(config, "commit", "-m", message)
     branch = _git(config, "rev-parse", "--abbrev-ref", "HEAD")
+    # The Actions posting run commits state/posted.json to this branch every
+    # hour, so by the time sync runs here the remote has usually moved on and a
+    # bare push is rejected. The workflows rebase before pushing for the same
+    # reason. The two sides never touch the same files - sync writes docs/media,
+    # Actions writes state/ - so the rebase does not conflict.
+    _git(config, "pull", "--rebase", "--autostash", "origin", branch)
     _git(config, "push", "origin", f"HEAD:{branch}")
     return True
 
