@@ -313,3 +313,23 @@ def test_the_rest_of_a_theme_does_not_cut_into_one_already_going_out(config: Con
 
     assert waiting is None
     assert [upload.key.split("/")[0] for upload in queue] == [second, first, first]
+
+
+def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None:
+    # The generator's progress is only ever committed here. Losing it on a
+    # fresh clone restarts the series and redraws topics already sent.
+    state_dir = config.project_root / "state"
+    state_dir.mkdir(parents=True, exist_ok=True)
+    (state_dir / "series_state.json").write_text('{"next_post_index": 244}', encoding="utf-8")
+    (state_dir / "phone_export_daemon_state.json").write_text('{"completed_slots": []}', encoding="utf-8")
+
+    with patch("tiktok_poster.cli.load_config", return_value=config), \
+         patch("tiktok_poster.cli.pages.push", return_value=True) as push:
+        assert _run_sync(_sync_args(dry_run=False)) == 0
+
+    pushed = {str(path) for path in push.call_args.args[2:]}
+    assert str(config.publish_dir) in pushed
+    assert str(state_dir / "series_state.json") in pushed
+    assert str(state_dir / "phone_export_daemon_state.json") in pushed
+    # Actions writes this one; sync committing a stale local copy would race it.
+    assert str(config.state_path) not in pushed

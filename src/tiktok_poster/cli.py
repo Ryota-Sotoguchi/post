@@ -101,8 +101,21 @@ def _run_sync(args: argparse.Namespace) -> int:
         print("Dry run. Nothing pushed.")
         return 0
 
+    # The generator runs on this PC too, and its progress - which topic comes
+    # next, which slots are done - lives in state/. Nothing else ever commits
+    # it, so a fresh clone would restart the series and redraw topics that have
+    # already gone out. Actions owns state/posted.json, so that file is not
+    # named here.
+    generator_state = [
+        path
+        for path in (
+            config.project_root / "state" / "series_state.json",
+            config.project_root / "state" / "phone_export_daemon_state.json",
+        )
+        if path.exists()
+    ]
     try:
-        if pages.push(config, f"media: sync {len(uploads)} carousel(s)"):
+        if pages.push(config, f"media: sync {len(uploads)} carousel(s)", config.publish_dir, *generator_state):
             print("Pushed media and manifest")
         else:
             print("Already up to date")
