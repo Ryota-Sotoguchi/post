@@ -36,16 +36,23 @@ if ($probe -ne "ok") {
     throw "Cannot see the project at $ProjectDir in $Distro. Fix the path before registering."
 }
 
-$generate = ".venv-linux/bin/python -m mbti_tiktok_bot run-daemon --run-once --no-reconcile"
-$publish  = ".venv-linux/bin/python -m tiktok_poster sync"
-# The braces matter: without them the redirect covers only the publish half,
-# and a failing generation writes to a terminal nobody is watching. That is
-# how three days of silence happened last time.
-$command  = "cd '$ProjectDir' && mkdir -p logs && { $generate && $publish ; } >> logs/task.log 2>&1"
+# The steps live in scheduled-run.sh so they can change without re-registering
+# the task. Everything it prints goes to logs/task.log, including a failing
+# step: the last outage went unnoticed because its errors went to a terminal
+# nobody was watching.
+$command  = "cd '$ProjectDir' && mkdir -p logs && scripts/scheduled-run.sh >> logs/task.log 2>&1"
 $argument = "-d $Distro -e bash -lc `"$command`""
 $action   = New-ScheduledTaskAction -Execute "$env:SystemRoot\System32\wsl.exe" -Argument $argument
 
-$triggers = foreach ($time in $Times) { New-ScheduledTaskTrigger -Daily -At $time }
+$triggers = @(foreach ($time in $Times) { New-ScheduledTaskTrigger -Daily -At $time })
+
+# The PC is not always on at those times. StartWhenAvailable catches up a slot
+# the machine slept through, but not one it was switched off for, so run at
+# logon as well. The run is idempotent - after a normal boot it finds nothing
+# due and exits - and the delay gives the network time to come up first.
+$logon = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"
+$logon.Delay = "PT2M"
+$triggers += $logon
 
 # StartWhenAvailable catches up a slot the machine slept through; IgnoreNew
 # keeps a slow run from overlapping the next trigger.
@@ -64,9 +71,9 @@ Register-ScheduledTask `
     -Action $action `
     -Trigger $triggers `
     -Settings $settings `
-    -Description "Generates the day's MBTI slides in WSL and publishes them to GitHub Pages." | Out-Null
+    -Description "Generates MBTI slides in WSL, publishes them to GitHub Pages, and starts the draft posting run if the day is short." | Out-Null
 
-Write-Host "Registered '$TaskName' for $($Times -join ', ')."
+Write-Host "Registered '$TaskName' for $($Times -join ', ') and at logon."
 Write-Host "Retire the old tasks if they are still present:"
 Write-Host "  Unregister-ScheduledTask -TaskName 'MBTI Daily Generate' -Confirm:`$false"
 Write-Host "  Unregister-ScheduledTask -TaskName 'TikTok Image Import'  -Confirm:`$false"

@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs, unquote
 
-from tiktok_poster import media, oauth, pages, tiktok
+from tiktok_poster import media, oauth, pages, retention, tiktok
 from tiktok_poster.catalog import (
     Upload,
     load_manifest,
@@ -412,6 +413,106 @@ def _run_check(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_cleanup(args: argparse.Namespace) -> int:
+    config = load_config(Path.cwd())
+    keep_days = args.days if args.days is not None else config.keep_local_days
+    themes = retention.expired_themes(
+        config.source_dir, config.output_dir, load_state(config.state_path), keep_days
+    )
+    if not themes:
+        print(f"Nothing to clean up: no theme was fully sent more than {keep_days} days ago.")
+        return 0
+    freed = retention.purge(config.source_dir, config.output_dir, themes, dry_run=args.dry_run)
+    verb = "Would free" if args.dry_run else "Freed"
+    for theme in themes:
+        print(f"  「{theme.theme}」 {theme.posts} posts, last sent {theme.last_sent:%Y-%m-%d}")
+    print(f"{verb} {freed / 1e6:.0f}MB across {len(themes)} theme(s) sent more than {keep_days} days ago.")
+    return 0
+
+
+# Posting lives in the Actions workflow, which is where the daily quota, the
+# six-draft inbox cap and the committed send state are enforced. Catching up
+# from this PC means asking Actions to run now, never sending from here: a
+# local send would count against a state file that may not have the morning's
+# Actions commits in it yet.
+POST_WORKFLOW = "post.yml"
+# A run that starts with less than this left on the token fails partway.
+APPROVAL_MARGIN = timedelta(minutes=30)
+
+
+def _authorized_until(config: Config) -> datetime | None:
+    """When the token Actions holds runs out, as published in docs/authorized.json.
+
+    state/tokens.json is not evidence: it exists after a local authorize even
+    when the token was never handed to Actions.
+    """
+    marker = config.publish_dir.parent / "authorized.json"
+    try:
+        stamp = datetime.fromisoformat(json.loads(marker.read_text(encoding="utf-8"))["expires_at"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return stamp if stamp.tzinfo else stamp.replace(tzinfo=timezone.utc)
+
+
+def _approval_page(config: Config) -> str:
+    base = config.pages_base_url.rstrip("/")
+    return (base[: -len("/media")] if base.endswith("/media") else base) + "/"
+
+
+def _prompt_for_approval(config: Config, today: str) -> bool:
+    """Open the approval page, at most once a day. Returns whether it opened."""
+    marker = config.project_root / "logs" / "approval_prompted"
+    try:
+        if marker.read_text(encoding="utf-8").strip() == today:
+            return False
+    except OSError:
+        pass
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(today, encoding="utf-8")
+    opener = shutil.which("powershell.exe")
+    if opener:
+        subprocess.run(
+            [opener, "-NoProfile", "-Command", f"Start-Process '{_approval_page(config)}'"],
+            capture_output=True,
+        )
+    return True
+
+
+def _run_catch_up(args: argparse.Namespace) -> int:
+    config = load_config(Path.cwd())
+    now = datetime.now(timezone.utc)
+    already = _sent_today(load_state(config.state_path))
+    if already >= config.posts_per_day:
+        print(f"Already sent {already} today, which is the limit of {config.posts_per_day}.")
+        return 0
+
+    expires = _authorized_until(config)
+    if expires is None or expires - now < APPROVAL_MARGIN:
+        print(f"Sent {already} of {config.posts_per_day} today, but today's approval is missing.")
+        print(f"Approve at {_approval_page(config)} and posting resumes on the next run.")
+        if not args.dry_run and _prompt_for_approval(config, datetime.now(JST).date().isoformat()):
+            print("Opened the approval page.")
+        return 0
+
+    print(f"Sent {already} of {config.posts_per_day} today; starting {POST_WORKFLOW} to send the rest.")
+    if args.dry_run:
+        return 0
+    try:
+        result = subprocess.run(
+            ["gh", "workflow", "run", POST_WORKFLOW],
+            capture_output=True,
+            text=True,
+            cwd=config.project_root,
+        )
+    except FileNotFoundError:
+        print("gh is not installed, so the posting workflow cannot be started.")
+        return 1
+    if result.returncode != 0:
+        print(f"Could not start {POST_WORKFLOW}: {result.stderr.strip()}")
+        return 1
+    return 0
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="tiktok-poster", description="Send MBTI carousels to TikTok drafts")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -461,6 +562,13 @@ def _build_parser() -> argparse.ArgumentParser:
     check = sub.add_parser("check", help="Poll TikTok for the status of sent carousels")
     check.add_argument("--limit", type=int, default=10)
 
+    cleanup = sub.add_parser("cleanup", help="Drop local slide images for themes sent long ago")
+    cleanup.add_argument("--days", type=int, default=None, help="Keep window in days (default KEEP_LOCAL_DAYS)")
+    cleanup.add_argument("--dry-run", action="store_true", help="Report what would be removed")
+
+    catch_up = sub.add_parser("catch-up", help="If today's drafts have not all gone out, start the posting workflow")
+    catch_up.add_argument("--dry-run", action="store_true", help="Report the decision without acting on it")
+
     return parser
 
 
@@ -473,6 +581,8 @@ def main() -> None:
         "post": _run_post,
         "daily": _run_daily,
         "check": _run_check,
+        "cleanup": _run_cleanup,
+        "catch-up": _run_catch_up,
     }
     raise SystemExit(handlers[args.command](args))
 

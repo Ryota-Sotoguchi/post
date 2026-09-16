@@ -41,6 +41,8 @@ class Config:
     theme_min_posts: int
     jpeg_quality: int
     keep_published_posts: int
+    output_dir: Path
+    keep_local_days: int
     client_key: str | None
     client_secret: str | None
     refresh_token: str | None
@@ -78,6 +80,10 @@ def load_config(project_root: Path | None = None) -> Config:
         # Published images stay reachable only long enough for TikTok to fetch
         # them; keeping every carousel would grow the repo without bound.
         keep_published_posts=int(settings.get("KEEP_PUBLISHED_POSTS", "20")),
+        # The generator's full output. Its slide images are dropped once a theme
+        # has been sent for this many days; see retention.py.
+        output_dir=path_of("OUTPUT_DIR", "out"),
+        keep_local_days=int(settings.get("KEEP_LOCAL_DAYS", "60")),
         client_key=settings.get("TIKTOK_CLIENT_KEY") or None,
         client_secret=settings.get("TIKTOK_CLIENT_SECRET") or None,
         refresh_token=settings.get("TIKTOK_REFRESH_TOKEN") or None,

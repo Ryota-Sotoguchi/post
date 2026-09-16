@@ -37,9 +37,9 @@ mbti_tiktok_bot                          tiktok_poster
 
 | いつ | どこで | 何が動くか |
 |---|---|---|
-| 08/12/16/20 時 | このPC (WSL) | `run-daemon --run-once` で4本生成 → `sync` で変換して push |
+| 08/12/16/20 時 ＋ ログオン時 | このPC (WSL) | `scripts/scheduled-run.sh`：生成 → 格納（push）→ 古い画像の削除 → 足りなければ投稿を起動 |
 | 08–22 時 毎時 | GitHub Actions | `post` が下書きへ送る（1日10本上限） |
-| 1日1回 | スマホ | 認可（下記「なぜ1日1回の承認が要るのか」） |
+| 1日1回 | スマホ or PC | 承認（下記「なぜ1日1回の承認が要るのか」） |
 
 ## 生成量
 
@@ -134,11 +134,54 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 ```
 
 WSL の cron は WSL セッションが上がっている間しか動かないので、Windows タスクスケジューラから
-`wsl.exe` を叩く。1タスクで「生成 → sync」まで通す。
-古い `MBTI Daily Generate` と `TikTok Image Import` が残っていたら登録解除する。
+`wsl.exe` を叩く。タスクは1つ（`MBTI Daily`）で、中身は [scripts/scheduled-run.sh](scripts/scheduled-run.sh)。
+
+| 順 | 手順 | やること |
+|---|---|---|
+| 1 | pull | Actions がコミットした送信記録と承認状態を取り込む |
+| 2 | generate | 前日・当日でまだ回っていない slot を生成（`run-daemon --run-once --no-reconcile`） |
+| 3 | store | JPEG 変換 → `docs/media` → push。生成側の進捗 state も一緒にコミット |
+| 4 | cleanup | 送信済みから `KEEP_LOCAL_DAYS` 日（60）経ったテーマの画像を削除 |
+| 5 | post | 今日の下書きが `POSTS_PER_DAY` に届いていなければ Actions の `post.yml` を起動 |
+
+**PC を起動していなかった日の取りこぼし**は、ログオン時トリガー（ログオン2分後）で拾う。
+全手順が冪等なので、何も溜まっていなければ数秒で終わる。
+`StartWhenAvailable` はスリープ中に過ぎた時刻を後から実行するが、電源オフ中に過ぎたものは拾わないため、ログオン時も別途走らせている。
+
+1つの手順が失敗しても残りは走る。生成が落ちても、在庫がある以上その日の投稿まで止める理由はないため。
+失敗はタスクの終了コードと `logs/task.log` に残る。
+
+取りこぼしの範囲には上限がある:
+
+- **生成**は前日分まで（`MAX_BACKLOG_DAYS = 1`）。それ以前の日は作り直さない。生成16本/日に対して投稿10本/日で在庫が積み上がる設計なので、数日止まっても在庫が埋める
+- **投稿**は当日分だけ。1日の上限はその日の送信数で数えるので、前日の不足分を翌日に上乗せはしない（下書き受信箱も同時6件まで）
+
+**投稿はこの PC からは送らない。** Actions の実行を起動するだけ。送信記録・1日の上限・受信箱の上限はすべて
+Actions 側でコミットされた state に対して判定されていて、PC から直接送ると、まだ pull していない朝の送信分を
+知らないまま数えて二重送信しうるため。
+
+その日の承認がまだなら投稿は起動せず、代わりに**承認ページ（`https://ryota-sotoguchi.github.io/post/`）をブラウザで開く**
+（1日1回まで）。サンドボックスのアプリはトークンを更新できないので、承認なしに起動しても送信の段で失敗するだけのため。
+承認すれば次の実行（最長4時間後、または次のログオン）で投稿が再開する。
 
 `--no-reconcile` は `state/phone_export_daemon_state.json` を信じるという意味。
 これが無いと `out/` のファイル数で進捗を判断するので、state 上は済んでいる slot を作り直す。
+
+## ローカルの保持期間
+
+`out/` と `delivery/phone/` は1日約 0.5GB 増える。`cleanup` は、**テーマの全投稿が送信済み**で、
+**最後の送信から `KEEP_LOCAL_DAYS` 日（既定60）経った**テーマについて:
+
+- `delivery/phone/<ネタ>/` を丸ごと削除
+- `out/<ネタ>/post_*/slides/` を削除し、`package.json`・キャプション・台本は**残す**
+
+台本を残すのは、生成時の重複ガードが `out/` の `package.json` と突き合わせているため。消すと数ヶ月前のネタが戻ってくる。
+送信途中のテーマには触らない。
+
+```bash
+.venv-linux/bin/python -m tiktok_poster cleanup --dry-run          # 何が消えるか
+.venv-linux/bin/python -m tiktok_poster cleanup --dry-run --days 0 # 送信済みテーマ全部なら
+```
 
 ## 出力
 
