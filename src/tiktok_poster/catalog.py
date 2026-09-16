@@ -141,22 +141,38 @@ def manifest_path(publish_dir: Path) -> Path:
 
 
 def write_manifest(path: Path, uploads: list[Upload], base_url: str) -> Path:
+    """Write the manifest, unless the carousels in it are unchanged.
+
+    sync runs at every scheduled slot and at logon, and most of those runs find
+    nothing new. Stamping a fresh generated_at regardless turned each of them
+    into a commit, a push and a Pages build that changed one line. Leaving the
+    file alone also keeps generated_at meaning "when the carousel list last
+    changed", which is what the staleness warning in status is really asking.
+    """
+    posts = [
+        {
+            "key": upload.key,
+            "theme": upload.theme,
+            "title": upload.title,
+            "description": upload.description,
+            "images": list(upload.images),
+        }
+        for upload in uploads
+    ]
+    try:
+        existing = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        existing = None
+    if isinstance(existing, dict) and existing.get("base_url") == base_url and existing.get("posts") == posts:
+        return path
+
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(
         json.dumps(
             {
                 "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "base_url": base_url,
-                "posts": [
-                    {
-                        "key": upload.key,
-                        "theme": upload.theme,
-                        "title": upload.title,
-                        "description": upload.description,
-                        "images": list(upload.images),
-                    }
-                    for upload in uploads
-                ],
+                "posts": posts,
             },
             ensure_ascii=False,
             indent=2,

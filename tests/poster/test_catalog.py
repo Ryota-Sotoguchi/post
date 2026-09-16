@@ -141,3 +141,38 @@ def test_send_order_is_not_held_by_a_slot_that_already_went_out() -> None:
 
     assert waiting is None
     assert len(queue) == 16
+
+
+def test_rewriting_an_unchanged_manifest_leaves_the_file_alone(tmp_path) -> None:
+    # sync runs several times a day and usually finds nothing new; a fresh
+    # timestamp every time made each run a one-line commit and a Pages build.
+    from datetime import datetime, timezone
+    from unittest.mock import patch
+
+    from tiktok_poster.catalog import Upload, write_manifest
+
+    path = tmp_path / "manifest.json"
+    uploads = [Upload(key="a/post_01_INTJ", theme="t", title="T", description="#t", images=("https://x/1.jpg",))]
+    more = uploads + [Upload(key="a/post_02_INTP", theme="t", title="T2", description="#t", images=("https://x/2.jpg",))]
+
+    def at(hour):
+        # Different hours, so an unconditional rewrite would change the stamp.
+        clock = patch("tiktok_poster.catalog.datetime")
+        mocked = clock.start()
+        mocked.now.return_value = datetime(2026, 9, 16, hour, tzinfo=timezone.utc)
+        return clock
+
+    clock = at(8)
+    write_manifest(path, uploads, "https://x")
+    clock.stop()
+    first = path.read_text(encoding="utf-8")
+
+    clock = at(12)
+    write_manifest(path, uploads, "https://x")
+    clock.stop()
+    assert path.read_text(encoding="utf-8") == first
+
+    clock = at(16)
+    write_manifest(path, more, "https://x")
+    clock.stop()
+    assert '"2026-09-16T16:00:00+00:00"' in path.read_text(encoding="utf-8")
