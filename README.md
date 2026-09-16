@@ -11,6 +11,10 @@ MBTI の TikTok カルーセルを作って、TikTok の下書きまで自動で
 以前は生成と投稿が別リポジトリ・別マシンに分かれていて、その間を会社の OneDrive フォルダで受け渡していた。
 今は1つのリポジトリに入っていて、受け渡しは `delivery/phone/` というリポジトリ内のフォルダになっている。
 
+GitHub 上のリポジトリ名は **`Ryota-Sotoguchi/post`** のまま。ローカルのディレクトリ名（`~/projects/tiktok`）と
+一致しないのは意図的で、リポジトリ名を変えると GitHub Pages の URL が変わり、TikTok 側で検証済みの
+URL プレフィックス（`https://ryota-sotoguchi.github.io/post/media`）とリダイレクト URI を取り直すことになる。
+
 ```
 mbti_tiktok_bot                          tiktok_poster
 ─────────────────                        ─────────────
@@ -103,7 +107,7 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 
 - Pages を有効化（`main` / `/docs`）
 - Secrets: `TIKTOK_CLIENT_KEY` `TIKTOK_CLIENT_SECRET` `TIKTOK_ACCESS_TOKEN` `GH_PAT`
-- 開発者ポータルのリダイレクト URI と URL プレフィックスを `https://ryota-sotoguchi.github.io/post/` 配下で検証する
+- 開発者ポータルのリダイレクト URI は `https://ryota-sotoguchi.github.io/post/`、URL プレフィックスは `https://ryota-sotoguchi.github.io/post/media`（どちらも登録・検証済み）
 
 ## 使い方
 
