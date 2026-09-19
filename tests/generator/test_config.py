@@ -80,6 +80,7 @@ class ConfigTests(unittest.TestCase):
                 "video_height",
                 "daily_posts",
                 "slot_posts",
+                "posts_per_day",
                 "topic_depth",
                 "default_hashtags",
                 "phone_export_auto",

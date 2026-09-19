@@ -2,9 +2,12 @@
 
 MBTI の TikTok カルーセルを作って、TikTok の下書きまで自動で送るツール。
 
-1つのネタにつき MBTI 16 タイプを順に回し、重複を避けながら台本・スライド画像・キャプションを作る。
-できたものは JPEG に変換して GitHub Pages に置き、GitHub Actions が TikTok の下書き受信箱へ送る。
-公開だけがスマホからの手動操作になる。
+1日10本、4つの形式（16タイプ一覧・ランキング・取扱説明書・相性診断）の投稿を LLM で書いて描画し、
+キャプションまで付ける。できたものは JPEG に変換して GitHub Pages に置き、GitHub Actions が
+TikTok の下書き受信箱へ送る。公開だけがスマホからの手動操作になる。
+
+以前の「1ネタ×16タイプ」形式（テーマ別カルーセル）は生成を止めた。在庫は残っていて、
+新形式の在庫が切れたときの穴埋めとして送られる（「投稿順」参照）。
 
 ## 構成
 
@@ -18,19 +21,21 @@ URL プレフィックス（`https://ryota-sotoguchi.github.io/post/media`）と
 ```
 mbti_tiktok_bot                          tiktok_poster
 ─────────────────                        ─────────────
-ネタ選択 → 台本 → スライド描画
+形式を選ぶ → LLM が書く → 描画
         ↓
-   out/<ネタ>/post_NN_TYPE/slides/
-        ↓ phone_export
-   delivery/phone/<ネタ>/post_NN_TYPE/  ──→  scan → JPEG 変換
+   out/posts/<NNNNN-形式>/slides/
+        ↓
+   delivery/phone/_posts/<NNNNN-形式>/  ──→  scan → JPEG 変換
         （PHONE_EXPORT_DIR）                      ↓
-                                          docs/media/<slug>/post_NN_TYPE/NN.jpg
+                                          docs/media/posts/<NNNNN-形式>/NN.jpg
                                           docs/media/manifest.json
                                                  ↓ git push
                                           GitHub Pages
                                                  ↓ PULL_FROM_URL
                                           GitHub Actions → TikTok 下書き
 ```
+
+旧形式の在庫は `delivery/phone/<ネタ>/post_NN_TYPE/` → `docs/media/<slug>/post_NN_TYPE/` の経路のまま。
 
 `manifest.json` が2つの半分をつなぐ契約になっている。Actions のランナーは元画像を見られないので、
 投稿に必要な情報（タイトル・説明文・画像URL）はすべて manifest に書き出しておく。
@@ -43,11 +48,36 @@ mbti_tiktok_bot                          tiktok_poster
 
 ## 生成量
 
-**1日16本 = 4 slot × 4本。** MBTI が16タイプなので、1つのネタが1日で完走して日をまたがない。
-`SLOT_POSTS` と `daemon.DEFAULT_DAEMON_TIMES` の積で決まる。
+**1日10本。** 生成と送信は同じ `POSTS_PER_DAY` を見るので、在庫は切れも積み上がりもしない。
 
-投稿側は `POSTS_PER_DAY=10` なので、毎日6本ずつ在庫が積み上がる。
-TikTok の下書き受信箱は同時6件までしか受け取らないため、投稿側をこれ以上増やしても詰まる。
+slot は決まった本数を作るのではなく、「その日のうち、今までに過ぎた slot の分」に足りない本数を作る。
+4 slot なら 08時で2本、12時で5本、16時で7本、20時で10本が目標で、`out/posts/*/post.json` の
+日付で数えた実績との差だけを作る。再実行やログオン時の取りこぼし回収でも二重には作らない。
+
+TikTok の下書き受信箱は同時6件までしか受け取らないため、送信側をこれ以上増やしても詰まる。
+
+## 投稿の形式
+
+10本は次の順で回る（同じ形式が2本続かない）:
+
+`一覧 → 取説 → ランキング → 相性 → 取説 → 一覧 → 相性 → 取説 → ランキング → 相性`
+
+| 形式 | 枚数 | 中身 |
+|---|---|---|
+| 16タイプ一覧 | 18 | 「既読スルーされた時の16タイプ」。表紙に16体、1タイプ1枚、締め |
+| ランキング | 9 | 16〜5位は4タイプずつ、4位から1位は1枚ずつ。1位は放射線付き |
+| 取扱説明書 | 10 | 1タイプを8項目で。角度（基本/恋愛/友達/仕事）は16タイプを1周するごとに変わる |
+| 相性診断 | 8 | 1タイプから見た相性◎3位→1位、要注意3位→1位 |
+
+一覧とランキングのお題は seed を使い切ると LLM が10個ずつ足す（既存と8割似ていれば弾く）。
+取説と相性は同じ日に同じタイプが重ならないよう、相性側を8タイプずらしている。
+
+コピーは1投稿1回の LLM 呼び出し（`gpt-5-mini`, reasoning_effort=low, 約10秒）で書く。
+16タイプが揃っていない・相性に自分自身が入っている、などの不正な応答はタイプ別データからの
+テンプレートに落とす。`out/posts/*/post.json` の `source` が `template` なら落ちた回。
+
+進み具合は `state/format_state.json`（次の番号・形式ごとのカーソル・追加されたお題）。
+`sync` がこれもコミットする。
 
 ## できないこと
 
@@ -97,8 +127,7 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 | 変数 | 意味 |
 |---|---|
 | `PHONE_EXPORT_DIR` / `SOURCE_DIR` | 受け渡しフォルダ。**両方 `delivery/phone` を指す**（生成の出口 = 投稿の入口） |
-| `SLOT_POSTS` | 1 slot の生成本数（4） |
-| `POSTS_PER_DAY` | 1日の送信上限（10） |
+| `POSTS_PER_DAY` | 1日の生成本数と送信上限（10）。生成側と送信側で共通 |
 | `PAGES_BASE_URL` | 開発者ポータルで検証した URL プレフィックスと**完全一致**させること |
 | `KEEP_PUBLISHED_POSTS` | 送信済みを何本ぶん `docs/media` に残すか（20） |
 | `OPENAI_API_KEY` / `OPENAI_MODEL` | コピーの推敲とネタ生成に使う。未設定ならテンプレのまま動く |
@@ -114,8 +143,7 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 ```bash
 # 生成
 .venv-linux/bin/python -m mbti_tiktok_bot run-daemon --run-once --no-reconcile
-.venv-linux/bin/python -m mbti_tiktok_bot run-slot [--date YYYY-MM-DD] [--dry-run]
-.venv-linux/bin/python -m mbti_tiktok_bot refresh-visuals [--topic 名前] [--export-only]
+.venv-linux/bin/python -m mbti_tiktok_bot run-slot [--date YYYY-MM-DD] [--dry-run] [--count N]
 
 # 投稿
 .venv-linux/bin/python -m tiktok_poster status
@@ -124,8 +152,8 @@ sudo apt install fonts-noto-cjk      # 日本語フォントが無いと描画�
 .venv-linux/bin/python -m tiktok_poster daily --sync-secret --no-post
 ```
 
-`refresh-visuals` はコピー・投稿順・series state に触らず**描画だけ**やり直す。
-レンダリングを変更したときの比較用。
+`run-slot` は今の時刻までに必要な本数に足りない分だけ作る。`--count` を付けるとその本数を作る。
+`run-daily` / `plan` / `refresh-visuals` は旧形式用で、定期実行からは使っていない。
 
 ## 定期実行
 
@@ -139,9 +167,9 @@ WSL の cron は WSL セッションが上がっている間しか動かない�
 | 順 | 手順 | やること |
 |---|---|---|
 | 1 | pull | Actions がコミットした送信記録と承認状態を取り込む |
-| 2 | generate | 前日・当日でまだ回っていない slot を生成（`run-daemon --run-once --no-reconcile`） |
+| 2 | generate | 前日・当日で足りない本数を生成（`run-daemon --run-once --no-reconcile`） |
 | 3 | store | JPEG 変換 → `docs/media` → push。生成側の進捗 state も一緒にコミット |
-| 4 | cleanup | 送信済みから `KEEP_LOCAL_DAYS` 日（60）経ったテーマの画像を削除 |
+| 4 | cleanup | 送信済みから `KEEP_LOCAL_DAYS` 日（60）経った投稿・テーマの画像を削除 |
 | 5 | post | 今日の下書きが `POSTS_PER_DAY` に届いていなければ Actions の `post.yml` を起動 |
 
 **PC を起動していなかった日の取りこぼし**は、ログオン時トリガー（ログオン2分後）で拾う。
@@ -153,7 +181,7 @@ WSL の cron は WSL セッションが上がっている間しか動かない�
 
 取りこぼしの範囲には上限がある:
 
-- **生成**は前日分まで（`MAX_BACKLOG_DAYS = 1`）。それ以前の日は作り直さない。生成16本/日に対して投稿10本/日で在庫が積み上がる設計なので、数日止まっても在庫が埋める
+- **生成**は前日分まで（`MAX_BACKLOG_DAYS = 1`）。それ以前の日は作り直さない。数日止まった分は旧形式の在庫（約220本）が埋める
 - **投稿**は当日分だけ。1日の上限はその日の送信数で数えるので、前日の不足分を翌日に上乗せはしない（下書き受信箱も同時6件まで）
 
 **投稿はこの PC からは送らない。** Actions の実行を起動するだけ。送信記録・1日の上限・受信箱の上限はすべて
@@ -169,8 +197,11 @@ Actions 側でコミットされた state に対して判定されていて、PC
 
 ## ローカルの保持期間
 
-`out/` と `delivery/phone/` は1日約 0.5GB 増える。`cleanup` は、**テーマの全投稿が送信済み**で、
-**最後の送信から `KEEP_LOCAL_DAYS` 日（既定60）経った**テーマについて:
+`out/` と `delivery/phone/` は毎日増える。`cleanup` は**送信から `KEEP_LOCAL_DAYS` 日（既定60）経った**
+新形式の投稿について `delivery/phone/_posts/<番号>/` と `out/posts/<番号>/slides/` を消す。
+`post.json` は残す（その日の生成本数をこれで数えているため）。
+
+旧形式は、**テーマの全投稿が送信済み**で、**最後の送信から60日経った**テーマについて:
 
 - `delivery/phone/<ネタ>/` を丸ごと削除
 - `out/<ネタ>/post_*/slides/` を削除し、`package.json`・キャプション・台本は**残す**
@@ -184,6 +215,18 @@ Actions 側でコミットされた state に対して判定されていて、PC
 ```
 
 ## 出力
+
+```
+out/posts/<NNNNN-形式>/
+    post.json          ← 書いた内容すべて（カード・フック・ハッシュタグ・source）
+    caption.txt        ← TikTok の説明文（フック＋CTA＋ハッシュタグ）
+    visual_identity.json
+    slides/slide_01.png …
+delivery/phone/_posts/<NNNNN-形式>/slide_NN.png, post.json（タイトルと説明文）
+docs/media/posts/<NNNNN-形式>/NN.jpg
+```
+
+旧形式:
 
 ```
 out/<ネタ>/series_plan.json
@@ -211,7 +254,10 @@ docs/media/<sha1(ネタ)[:10]>/post_NN_<MBTI>/NN.jpg  ← 公開される JPEG
 
 ## 投稿順
 
-`SOURCE_DIR/<テーマ>/post_NN_TYPE/` の **NN の昇順**で送ります。
+**新形式が先、旧形式は穴埋め。** 新形式は番号順（作った順）に送り、未送信の新形式が無いときだけ
+旧形式のテーマ別カルーセルに進みます。
+
+旧形式は `SOURCE_DIR/<テーマ>/post_NN_TYPE/` の **NN の昇順**で送ります。
 1テーマを16本使い切ってから次のテーマの `post_01` に移ります。
 
 順番は次の2つの規則で決まります。
@@ -295,14 +341,35 @@ TikTok は送信時に1度だけ画像を取りに来るので、取り込み済
 
 この配線が無かったせいで `docs/media` は 298MB まで育っていた。
 
-## 投稿ネタの型
-
-16 タイプを 1 周するごとに次の基本テーマへ進み、使い切ったあとは同じ blueprint を使いながらテーマ名を重複させない形で新テーマを追加します。
-
-- が好きな人に見せる態度 / が脈ありの時にする行動 / のLINEが急に変わる瞬間 / が本気で心を許したサイン / がしんどい時に出るサイン
-- の攻略で効く接し方 / が仲良くなるほど出る素の反応 / の仕事で信頼される関わり方 / の回復が早い休み方 / と会話が噛み合う話し方
-
 ## デザイン
+
+### 新形式（`design/`）
+
+**4つのルック × 6つのレイアウト。** ルックは投稿番号で回るので、同じ見た目が2本続かない。
+
+| ルック | 方向 | 中身 |
+|---|---|---|
+| NEON | かっこいい | 暗いオーロラ背景、白抜きの特大欧文、ガラスパネル、キャラにリムライトとグロー |
+| BUBBLE | かわいい | パステルとドット、白フチのステッカー見出し、丸バッジの数字、キャラは傾けたステッカー |
+| EDITORIAL | おしゃれ | 紙の質感、明朝の見出し、罫線、キャラは円やアーチの窓で切り抜く |
+| BRUTAL | 最先端 | ベタ塗り＋グリッドとトンボ、黒ベタの数字、角チップ、キャラはダブルトーン＋ハードシャドウ |
+
+レイアウト（`cover` `entry` `grid` `section` `pair` `closer`）は文字を下から先に組み、残った高さを
+キャラに渡す。長い見出しが顔にかぶらないのはこのため。
+
+フォントは同梱（`assets/fonts/`、すべて SIL OFL）: Zen Kaku Gothic New（Medium/Bold/Black）、
+Anton、Bebas Neue。細いウェイトと明朝はシステムの Noto を使う。
+Zen Kaku には `palt` が無いので、約物（「」、。）の半角詰めは [design/text.py](src/mbti_tiktok_bot/design/text.py) で自前で行う。
+見出しの改行は語の途中で切らない（「既読で／とりあえず放置派」「静かに／寄り添う共鳴者」）。
+切れる場所が無ければ縮めて収める。
+
+キャラ画像は16点すべて切り抜きに揃えてある（白背景だった4点は `scripts/cutout-white-background.py` で一度だけ処理）。
+
+描画は1投稿10〜20秒。同じ投稿は何度描いても同じ画像になる（粒子ノイズもシード固定）。
+
+### 旧形式
+
+以下は旧形式（テーマ別カルーセル）の描画の説明。生成は止めているが、コードは残っている。
 
 スライドは **1080x1920 を2倍（2160x3840）で描いて、合成の最後に一度だけ LANCZOS で縮小**する。
 Pillow の `ImageDraw` はポリゴン・円弧・線・角丸をアンチエイリアスしないので、そのまま描くと

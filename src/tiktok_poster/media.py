@@ -5,7 +5,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from tiktok_poster.catalog import Post
+from tiktok_poster.catalog import FreshPost, Post
 from tiktok_poster.config import Config
 
 # TikTok accepts WebP and JPEG for photo posts. PNG is rejected, and the
@@ -36,11 +36,13 @@ def _convert(source: Path, destination: Path, quality: int) -> Path:
     return destination
 
 
-def post_publish_dir(config: Config, post: Post) -> Path:
-    return config.publish_dir / post.theme_slug / post.source_dir.name
+def post_publish_dir(config: Config, post: Post | FreshPost) -> Path:
+    # The key is already a relative, ASCII path: <theme slug>/post_NN_TYPE for
+    # a themed carousel, posts/<NNNNN-format> for one of the new formats.
+    return config.publish_dir / post.key
 
 
-def publish_post(config: Config, post: Post) -> list[Path]:
+def publish_post(config: Config, post: Post | FreshPost) -> list[Path]:
     """Write the carousel into the Pages tree as JPEG."""
     target_dir = post_publish_dir(config, post)
     if target_dir.exists():
@@ -52,12 +54,12 @@ def publish_post(config: Config, post: Post) -> list[Path]:
     return written
 
 
-def public_urls(config: Config, post: Post) -> list[str]:
+def public_urls(config: Config, post: Post | FreshPost) -> list[str]:
     if not config.pages_base_url:
         raise ValueError("PAGES_BASE_URL must be set before publishing")
     target_dir = post_publish_dir(config, post)
     names = sorted(path.name for path in target_dir.glob(f"*{OUTPUT_SUFFIX}"))
-    prefix = f"{config.pages_base_url}/{post.theme_slug}/{post.source_dir.name}"
+    prefix = f"{config.pages_base_url}/{post.key}"
     return [f"{prefix}/{name}" for name in names]
 
 

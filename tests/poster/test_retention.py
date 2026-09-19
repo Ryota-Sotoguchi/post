@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tiktok_poster.retention import expired_themes, purge, theme_slug
+from tiktok_poster.retention import expired_posts, expired_themes, purge, purge_posts, theme_slug
 from tiktok_poster.state import State
 
 NOW = datetime(2026, 12, 1, tzinfo=timezone.utc)
@@ -81,3 +81,40 @@ def test_dry_run_reports_without_deleting(tmp_path: Path) -> None:
     themes = expired_themes(source, output, state, keep_days=60, now=NOW)
     assert purge(source, output, themes, dry_run=True) == 100
     assert (source / "古いネタ").exists()
+
+
+def _fresh(source: Path, output: Path, name: str) -> None:
+    handoff = source / "_posts" / name
+    handoff.mkdir(parents=True, exist_ok=True)
+    (handoff / "slide_01.png").write_bytes(b"x" * 100)
+    slides = output / "posts" / name / "slides"
+    slides.mkdir(parents=True, exist_ok=True)
+    (slides / "slide_01.png").write_bytes(b"x" * 100)
+    (output / "posts" / name / "post.json").write_text("{}", encoding="utf-8")
+
+
+def _sent_fresh(state: State, name: str, days_ago: int) -> None:
+    state.add(f"posts/{name}", name, "pid")
+    state.records[-1].posted_at = (NOW - timedelta(days=days_ago)).isoformat()
+
+
+def test_a_new_format_post_expires_on_its_own_and_keeps_its_post_json(tmp_path: Path) -> None:
+    source, output = _dirs(tmp_path)
+    _fresh(source, output, "00001-gallery")
+    _fresh(source, output, "00002-manual")
+    _fresh(source, output, "00003-ranking")
+    state = State()
+    _sent_fresh(state, "00001-gallery", days_ago=90)
+    _sent_fresh(state, "00002-manual", days_ago=10)  # too recent; 00003 never sent
+
+    posts = expired_posts(source, output, state, keep_days=60, now=NOW)
+    assert [post.name for post in posts] == ["00001-gallery"]
+    assert purge_posts(source, output, posts) == 200
+
+    assert not (source / "_posts" / "00001-gallery").exists()
+    assert not (output / "posts" / "00001-gallery" / "slides").exists()
+    # The generator counts a day's posts by this file.
+    assert (output / "posts" / "00001-gallery" / "post.json").exists()
+    assert (source / "_posts" / "00002-manual").exists()
+    # Already purged: nothing left to report next time.
+    assert expired_posts(source, output, state, keep_days=60, now=NOW) == []

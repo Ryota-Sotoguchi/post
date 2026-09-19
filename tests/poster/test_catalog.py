@@ -4,7 +4,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from tiktok_poster.catalog import Upload, ready_themes, scan, send_order
+from tiktok_poster.catalog import Upload, ready_themes, scan, scan_fresh, send_order
 
 
 def test_scan_finds_every_complete_carousel(source_tree: Path) -> None:
@@ -176,3 +176,73 @@ def test_rewriting_an_unchanged_manifest_leaves_the_file_alone(tmp_path) -> None
     write_manifest(path, more, "https://x")
     clock.stop()
     assert '"2026-09-16T16:00:00+00:00"' in path.read_text(encoding="utf-8")
+
+
+def _fresh_post(source: Path, name: str, title: str = "INFJと相性がいいタイプ【恋愛】", meta: bool = True) -> Path:
+    import json
+
+    folder = source / "_posts" / name
+    folder.mkdir(parents=True, exist_ok=True)
+    for index in (1, 2):
+        Image.new("RGB", (8, 8)).save(folder / f"slide_{index:02d}.png")
+    if meta:
+        (folder / "post.json").write_text(
+            json.dumps({"key": name, "format": name.split("-")[1], "title": title, "description": "フック\n\n#MBTI"},
+                       ensure_ascii=False),
+            encoding="utf-8",
+        )
+    return folder
+
+
+def test_scan_fresh_reads_the_generators_own_title_and_caption(tmp_path: Path) -> None:
+    _fresh_post(tmp_path, "00002-manual", title="ESFPの取扱説明書")
+    _fresh_post(tmp_path, "00001-gallery", title="既読スルーされた時の16タイプ")
+
+    posts = scan_fresh(tmp_path)
+
+    assert [post.key for post in posts] == ["posts/00001-gallery", "posts/00002-manual"]
+    assert posts[0].title == "既読スルーされた時の16タイプ"
+    assert posts[0].description == "フック\n\n#MBTI"
+    assert len(posts[0].slides) == 2
+
+
+def test_scan_fresh_skips_a_post_still_being_written(tmp_path: Path) -> None:
+    # post.json is written last, so a folder without it is mid-export.
+    _fresh_post(tmp_path, "00001-gallery", meta=False)
+    assert scan_fresh(tmp_path) == []
+
+
+def test_the_themed_scan_does_not_mistake_the_fresh_folder_for_a_theme(tmp_path: Path) -> None:
+    _fresh_post(tmp_path, "00001-gallery")
+    assert scan(tmp_path) == []
+
+
+def _fresh_upload(name: str) -> Upload:
+    return Upload(key=f"posts/{name}", theme=name.split("-")[1], title=name, description="#MBTI",
+                  images=("https://example.test/a.jpg",))
+
+
+def test_send_order_puts_new_formats_first_and_the_old_themes_after() -> None:
+    uploads = _theme("aaa", range(1, 4)) + [_fresh_upload("00002-manual"), _fresh_upload("00001-gallery")]
+
+    queue, waiting = send_order(uploads, [], size=3)
+
+    assert waiting is None
+    assert [upload.key for upload in queue] == [
+        "posts/00001-gallery",
+        "posts/00002-manual",
+        "aaa/post_01_INTJ",
+        "aaa/post_02_INTJ",
+        "aaa/post_03_INTJ",
+    ]
+
+
+def test_send_order_skips_new_posts_already_sent_without_disturbing_a_started_theme() -> None:
+    uploads = _theme("aaa", range(1, 17)) + _theme("bbb", range(1, 17)) + [_fresh_upload("00001-gallery"),
+                                                                        _fresh_upload("00002-manual")]
+    posted = ["posts/00001-gallery", "bbb/post_01_INTJ"]
+
+    queue, _ = send_order(uploads, posted)
+
+    assert queue[0].key == "posts/00002-manual"
+    assert [upload.key.split("/")[0] for upload in queue[1:]] == ["bbb"] * 15 + ["aaa"] * 16

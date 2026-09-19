@@ -57,36 +57,29 @@ class CliTests(unittest.TestCase):
             ],
         )
 
+    def _temp_config(self, root: Path):
+        return replace(
+            load_config(Path.cwd()),
+            project_root=root,
+            output_dir=root / "out",
+            state_dir=root / "state",
+            phone_export_auto=False,
+            phone_export_dir=root / "delivery" / "phone",
+            posts_per_day=10,
+        )
+
     def test_reconcile_daemon_outputs_caps_backlog_after_a_long_outage(self) -> None:
-        # This walk generates any slot a visited date is missing, so a stale
-        # state file must not expand into one run per slot per missed day.
+        # Each visited date is topped up to its quota, so a stale state file
+        # must not expand into a run for every day the PC was off.
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config = replace(
-                load_config(Path.cwd()),
-                project_root=root,
-                output_dir=root / "out",
-                state_dir=root / "state",
-                phone_export_dir=root / "delivery" / "phone",
-            )
+            config = self._temp_config(Path(temp_dir))
             config.state_dir.mkdir(parents=True, exist_ok=True)
             (config.state_dir / "phone_export_daemon_state.json").write_text(
                 json.dumps({"current_date": "2026-06-01", "completed_slots": []}),
                 encoding="utf-8",
             )
 
-            produced: dict[str, int] = {}
-
-            def fake_run_slot(_config, target_date, _dry_run, _export_phone) -> int:
-                produced[target_date.isoformat()] = produced.get(target_date.isoformat(), 0) + 1
-                return 0
-
-            def fake_load_daily_results(target_date, _config):
-                return [object()] * produced.get(target_date.isoformat(), 0)
-
-            with patch("mbti_tiktok_bot.cli._run_slot_command", side_effect=fake_run_slot) as run_slot_mock, patch(
-                "mbti_tiktok_bot.cli.load_daily_results", side_effect=fake_load_daily_results
-            ), patch("mbti_tiktok_bot.cli.export_daily_results_to_phone"), patch(
+            with patch("mbti_tiktok_bot.cli._run_slot_command", return_value=0) as run_slot_mock, patch(
                 "mbti_tiktok_bot.cli.datetime"
             ) as datetime_mock:
                 datetime_mock.now.return_value = datetime(2026, 8, 25, 19, 0)
@@ -94,32 +87,38 @@ class CliTests(unittest.TestCase):
                 exit_code = _reconcile_daemon_outputs(config, ["08:00", "12:00", "18:00"], False)
 
             self.assertEqual(exit_code, 0)
-            # Yesterday and today at three slots each, not 85 days of backlog.
-            self.assertEqual(run_slot_mock.call_count, 6)
-            self.assertEqual(sorted(produced), ["2026-08-24", "2026-08-25"])
-
-    def test_reconcile_daemon_outputs_stops_when_a_slot_makes_no_progress(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config = replace(
-                load_config(Path.cwd()),
-                project_root=root,
-                output_dir=root / "out",
-                state_dir=root / "state",
-                phone_export_dir=root / "delivery" / "phone",
+            self.assertEqual(
+                [call.args[1].isoformat() for call in run_slot_mock.call_args_list],
+                ["2026-08-24", "2026-08-25"],
             )
-            config.state_dir.mkdir(parents=True, exist_ok=True)
+            self.assertEqual(
+                json.loads((config.state_dir / "phone_export_daemon_state.json").read_text(encoding="utf-8")),
+                {"current_date": "2026-08-25", "completed_slots": ["08:00", "12:00", "18:00"]},
+            )
 
-            with patch("mbti_tiktok_bot.cli._run_slot_command", return_value=0) as run_slot_mock, patch(
-                "mbti_tiktok_bot.cli.load_daily_results", return_value=[]
-            ), patch("mbti_tiktok_bot.cli.datetime") as datetime_mock:
+    def test_reconcile_daemon_outputs_stops_at_a_failed_date(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = self._temp_config(Path(temp_dir))
+            config.state_dir.mkdir(parents=True, exist_ok=True)
+            (config.state_dir / "phone_export_daemon_state.json").write_text(
+                json.dumps({"current_date": "2026-08-24", "completed_slots": []}),
+                encoding="utf-8",
+            )
+
+            with patch("mbti_tiktok_bot.cli._run_slot_command", return_value=1) as run_slot_mock, patch(
+                "mbti_tiktok_bot.cli.datetime"
+            ) as datetime_mock:
                 datetime_mock.now.return_value = datetime(2026, 8, 25, 19, 0)
                 datetime_mock.strptime = datetime.strptime
                 exit_code = _reconcile_daemon_outputs(config, ["08:00", "12:00", "18:00"], False)
 
-            # Bails out instead of spinning forever on a slot that never lands.
             self.assertEqual(exit_code, 1)
             self.assertEqual(run_slot_mock.call_count, 1)
+            # Nothing is recorded as done when the day could not be made up.
+            self.assertEqual(
+                json.loads((config.state_dir / "phone_export_daemon_state.json").read_text(encoding="utf-8"))["current_date"],
+                "2026-08-24",
+            )
 
     def test_run_daemon_skips_reconcile_when_asked(self) -> None:
         # On a fresh checkout out/ is empty, so counting files there reads as
@@ -219,104 +218,6 @@ class CliTests(unittest.TestCase):
             self.assertEqual(
                 (config.state_dir / "phone_export_daemon_state.json").read_text(encoding="utf-8").replace("\r\n", "\n"),
                 '{\n  "current_date": "2026-04-29",\n  "completed_slots": [\n    "08:00"\n  ]\n}',
-            )
-
-    def test_run_daemon_reconciles_existing_outputs_before_filling_missing_slots(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config = replace(
-                load_config(Path.cwd()),
-                project_root=root,
-                output_dir=root / "out",
-                state_dir=root / "state",
-                phone_export_auto=False,
-                phone_export_dir=root / "delivery" / "phone",
-            )
-            args = Namespace(times=["08:00", "12:00", "18:00"], poll_seconds=30, dry_run=False, run_once=True, no_reconcile=False)
-            target_date = date(2026, 4, 29)
-            series_dir = config.output_dir / "が好きな人に見せる態度"
-            first_output_dir = series_dir / "post_01_INTJ"
-            first_slides_dir = first_output_dir / "slides"
-            first_slides_dir.mkdir(parents=True, exist_ok=True)
-            (first_slides_dir / "slide_01.png").write_bytes(b"slide")
-            (first_output_dir / "package.json").write_text("{}", encoding="utf-8")
-            (first_output_dir / "caption.txt").write_text("caption", encoding="utf-8")
-            (series_dir / "series_plan.json").write_text(
-                json.dumps(
-                    [
-                        {
-                            "post_date": target_date.isoformat(),
-                            "title": "INTJタイトル",
-                            "mbti_type": "INTJ",
-                            "daily_slot": 1,
-                            "global_post_index": 0,
-                            "output_dir": str(first_output_dir),
-                        }
-                    ],
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
-            state_path = config.state_dir / "phone_export_daemon_state.json"
-            state_path.parent.mkdir(parents=True, exist_ok=True)
-            state_path.write_text(
-                '{\n  "current_date": "2026-04-29",\n  "completed_slots": []\n}',
-                encoding="utf-8",
-            )
-
-            def _write_missing_slot(*args, **kwargs):
-                second_output_dir = series_dir / "post_02_ENTP"
-                second_slides_dir = second_output_dir / "slides"
-                second_slides_dir.mkdir(parents=True, exist_ok=True)
-                (second_slides_dir / "slide_01.png").write_bytes(b"slide")
-                (second_output_dir / "package.json").write_text("{}", encoding="utf-8")
-                (second_output_dir / "caption.txt").write_text("caption", encoding="utf-8")
-                (series_dir / "series_plan.json").write_text(
-                    json.dumps(
-                        [
-                            {
-                                "post_date": target_date.isoformat(),
-                                "title": "INTJタイトル",
-                                "mbti_type": "INTJ",
-                                "daily_slot": 1,
-                                "global_post_index": 0,
-                                "output_dir": str(first_output_dir),
-                            },
-                            {
-                                "post_date": target_date.isoformat(),
-                                "title": "ENTPタイトル",
-                                "mbti_type": "ENTP",
-                                "daily_slot": 1,
-                                "global_post_index": 1,
-                                "output_dir": str(second_output_dir),
-                            },
-                        ],
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
-                return 0
-
-            with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
-                "mbti_tiktok_bot.cli._run_slot_command",
-                side_effect=_write_missing_slot,
-            ) as run_slot_mock, patch("mbti_tiktok_bot.cli.export_daily_results_to_phone") as export_mock, patch(
-                "mbti_tiktok_bot.cli.run_daemon",
-                return_value=0,
-            ), patch("mbti_tiktok_bot.cli.datetime") as datetime_mock:
-                datetime_mock.now.return_value = datetime(2026, 4, 29, 12, 1)
-                datetime_mock.strptime.side_effect = datetime.strptime
-                exit_code = _run_daemon(args)
-
-            self.assertEqual(exit_code, 0)
-            run_slot_mock.assert_called_once()
-            self.assertEqual(run_slot_mock.call_args.args[1].isoformat(), "2026-04-29")
-            export_mock.assert_called_once()
-            self.assertEqual(
-                json.loads((config.state_dir / "phone_export_daemon_state.json").read_text(encoding="utf-8")),
-                {"current_date": "2026-04-29", "completed_slots": ["08:00", "12:00"]},
             )
 
     def test_build_daily_bundles_appends_series_summary_for_slot_runs(self) -> None:
@@ -436,43 +337,50 @@ class CliTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertEqual(load_series_state(config)["next_post_index"], 1)
 
-    def test_run_slot_advances_series_state_and_exports_day_directory(self) -> None:
+    def test_run_slot_makes_what_the_date_is_short_of(self) -> None:
+        # Ten a day over four slots: by 12:01 two slots have passed, so five
+        # are due. Two are already on disk, so three are made.
         with tempfile.TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            config = replace(
-                load_config(Path.cwd()),
-                project_root=root,
-                output_dir=root / "out",
-                state_dir=root / "state",
-                phone_export_auto=False,
-                phone_export_dir=root / "delivery" / "phone",
-            )
-            output_dir = config.output_dir / "が好きな人に見せる態度" / "post_01_INTJ"
-            result = PipelineResult(
-                output_dir=output_dir,
-                package_path=output_dir / "package.json",
-                caption_path=output_dir / "caption.txt",
-                title="INTJが好きな人に見せる態度",
-                mbti_type="INTJ",
-                daily_slot=1,
-                global_post_index=0,
-                media_paths=[],
-            )
-            args = Namespace(
-                date="2026-04-24",
-                dry_run=False,
-                export_phone=True,
-            )
+            config = self._temp_config(Path(temp_dir))
+            args = Namespace(date="2026-04-24", dry_run=False, count=None, times=["08:00", "12:00", "16:00", "20:00"])
 
             with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
-                "mbti_tiktok_bot.cli._build_slot_results",
-                return_value=[result],
-            ), patch("mbti_tiktok_bot.cli.export_daily_results_to_phone") as export_mock:
+                "mbti_tiktok_bot.cli.produced_on", return_value=[Path("a"), Path("b")]
+            ), patch("mbti_tiktok_bot.cli.produce") as produce_mock, patch("mbti_tiktok_bot.cli.datetime") as datetime_mock:
+                datetime_mock.now.return_value = datetime(2026, 4, 24, 12, 1)
+                datetime_mock.strptime = datetime.strptime
                 exit_code = _run_slot(args)
 
             self.assertEqual(exit_code, 0)
-            self.assertEqual(load_series_state(config)["next_post_index"], 1)
-            export_mock.assert_called_once()
+            produce_mock.assert_called_once_with(config, date(2026, 4, 24), 3)
+
+    def test_run_slot_does_nothing_when_the_date_is_full(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = self._temp_config(Path(temp_dir))
+            args = Namespace(date="2026-04-24", dry_run=False, count=None, times=["08:00", "12:00", "16:00", "20:00"])
+
+            with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
+                "mbti_tiktok_bot.cli.produced_on", return_value=[Path(str(i)) for i in range(10)]
+            ), patch("mbti_tiktok_bot.cli.produce") as produce_mock, patch("mbti_tiktok_bot.cli.datetime") as datetime_mock:
+                datetime_mock.now.return_value = datetime(2026, 4, 24, 23, 0)
+                datetime_mock.strptime = datetime.strptime
+                exit_code = _run_slot(args)
+
+            self.assertEqual(exit_code, 0)
+            produce_mock.assert_not_called()
+
+    def test_run_slot_count_overrides_the_quota(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = self._temp_config(Path(temp_dir))
+            args = Namespace(date="2026-04-24", dry_run=False, count=2, times=["08:00"])
+
+            with patch("mbti_tiktok_bot.cli.load_config", return_value=config), patch(
+                "mbti_tiktok_bot.cli.produce"
+            ) as produce_mock:
+                exit_code = _run_slot(args)
+
+            self.assertEqual(exit_code, 0)
+            produce_mock.assert_called_once_with(config, date(2026, 4, 24), 2)
 
 
 if __name__ == "__main__":

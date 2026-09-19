@@ -139,8 +139,9 @@ def entry(look: Look, post: Post, card: Card) -> Layers:
     draw = canvas(text, look.ctx)
     item = card.items[0]
     ranking = post.format == "ranking"
-    row = _top_row(look, draw, post.title if not ranking else card.label,
-                   f"{card.number:02d} / {card.total:02d}" if not ranking else "")
+    # A ranking's place is the slide's giant numeral; saying 第4位 above it
+    # again only crowded the corner, so the eyebrow keeps the post's title.
+    row = _top_row(look, draw, post.title, f"{card.number:02d} / {card.total:02d}" if not ranking else "")
 
     body, body_height, chips = _copy_height(look, card, SAFE_WIDTH)
     title = look.headline(card.title, SAFE_WIDTH, 330, 112, 60)

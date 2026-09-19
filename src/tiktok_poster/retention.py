@@ -13,6 +13,10 @@ below its publishing threshold.
 Under out/ only the slides go. package.json, the caption and the script stay:
 the generator's overlap guard compares new copy against every package.json it
 can find, and deleting those would let a topic from months ago come back.
+
+Posts in the new formats are complete on their own, so they expire one by one:
+the handoff folder goes, and under out/posts only the slides, because the
+generator counts a date's posts by the post.json it leaves there.
 """
 
 from __future__ import annotations
@@ -111,4 +115,52 @@ def purge(source_dir: Path, output_dir: Path, themes: list[ExpiredTheme], dry_ru
                 freed += _size(slides)
                 if not dry_run:
                     shutil.rmtree(slides)
+    return freed
+
+
+FRESH_HANDOFF = "_posts"
+FRESH_OUTPUT = "posts"
+FRESH_PREFIX = "posts"
+
+
+@dataclass(frozen=True, slots=True)
+class ExpiredPost:
+    name: str
+    last_sent: datetime
+
+
+def expired_posts(
+    source_dir: Path,
+    output_dir: Path,
+    state: State,
+    keep_days: int,
+    now: datetime | None = None,
+) -> list[ExpiredPost]:
+    """New-format posts sent more than keep_days ago that still have images."""
+    now = now or datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=keep_days)
+    sent = _sent_at(state)
+    names: set[str] = set()
+    for root in (source_dir / FRESH_HANDOFF, output_dir / FRESH_OUTPUT):
+        if root.is_dir():
+            names.update(child.name for child in root.iterdir() if child.is_dir())
+    expired: list[ExpiredPost] = []
+    for name in sorted(names):
+        stamp = sent.get(f"{FRESH_PREFIX}/{name}")
+        if stamp is None or stamp > cutoff:
+            continue
+        if (source_dir / FRESH_HANDOFF / name).is_dir() or (output_dir / FRESH_OUTPUT / name / "slides").is_dir():
+            expired.append(ExpiredPost(name, stamp))
+    return expired
+
+
+def purge_posts(source_dir: Path, output_dir: Path, posts: list[ExpiredPost], dry_run: bool = False) -> int:
+    """Remove the images for these posts. Returns the bytes freed."""
+    freed = 0
+    for post in posts:
+        for path in (source_dir / FRESH_HANDOFF / post.name, output_dir / FRESH_OUTPUT / post.name / "slides"):
+            if path.is_dir():
+                freed += _size(path)
+                if not dry_run:
+                    shutil.rmtree(path)
     return freed

@@ -17,6 +17,7 @@ from tiktok_poster.catalog import (
     manifest_path,
     ready_themes,
     scan,
+    scan_fresh,
     send_order,
     write_manifest,
 )
@@ -69,6 +70,10 @@ def _run_sync(args: argparse.Namespace) -> int:
     if held:
         print(f"Publishing {len(posts)} carousel(s) across {len({post.theme for post in posts})} theme(s)")
 
+    fresh = scan_fresh(config.source_dir)
+    print(f"Found {len(fresh)} post(s) in the new formats")
+    posts = [*fresh, *posts]
+
     uploads: list[Upload] = []
     for index, post in enumerate(posts, start=1):
         media.publish_post(config, post)
@@ -112,6 +117,7 @@ def _run_sync(args: argparse.Namespace) -> int:
         for path in (
             config.project_root / "state" / "series_state.json",
             config.project_root / "state" / "phone_export_daemon_state.json",
+            config.project_root / "state" / "format_state.json",
         )
         if path.exists()
     ]
@@ -416,17 +422,21 @@ def _run_check(args: argparse.Namespace) -> int:
 def _run_cleanup(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     keep_days = args.days if args.days is not None else config.keep_local_days
-    themes = retention.expired_themes(
-        config.source_dir, config.output_dir, load_state(config.state_path), keep_days
-    )
-    if not themes:
-        print(f"Nothing to clean up: no theme was fully sent more than {keep_days} days ago.")
+    state = load_state(config.state_path)
+    themes = retention.expired_themes(config.source_dir, config.output_dir, state, keep_days)
+    posts = retention.expired_posts(config.source_dir, config.output_dir, state, keep_days)
+    if not themes and not posts:
+        print(f"Nothing to clean up: nothing was sent more than {keep_days} days ago.")
         return 0
     freed = retention.purge(config.source_dir, config.output_dir, themes, dry_run=args.dry_run)
+    freed += retention.purge_posts(config.source_dir, config.output_dir, posts, dry_run=args.dry_run)
     verb = "Would free" if args.dry_run else "Freed"
     for theme in themes:
         print(f"  「{theme.theme}」 {theme.posts} posts, last sent {theme.last_sent:%Y-%m-%d}")
-    print(f"{verb} {freed / 1e6:.0f}MB across {len(themes)} theme(s) sent more than {keep_days} days ago.")
+    for post in posts:
+        print(f"  {post.name}, sent {post.last_sent:%Y-%m-%d}")
+    print(f"{verb} {freed / 1e6:.0f}MB across {len(themes)} theme(s) and {len(posts)} post(s) "
+          f"sent more than {keep_days} days ago.")
     return 0
 
 

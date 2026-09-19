@@ -322,6 +322,7 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     state_dir.mkdir(parents=True, exist_ok=True)
     (state_dir / "series_state.json").write_text('{"next_post_index": 244}', encoding="utf-8")
     (state_dir / "phone_export_daemon_state.json").write_text('{"completed_slots": []}', encoding="utf-8")
+    (state_dir / "format_state.json").write_text('{"next_seq": 12}', encoding="utf-8")
 
     with patch("tiktok_poster.cli.load_config", return_value=config), \
          patch("tiktok_poster.cli.pages.push", return_value=True) as push:
@@ -331,5 +332,39 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     assert str(config.publish_dir) in pushed
     assert str(state_dir / "series_state.json") in pushed
     assert str(state_dir / "phone_export_daemon_state.json") in pushed
+    assert str(state_dir / "format_state.json") in pushed
     # Actions writes this one; sync committing a stale local copy would race it.
     assert str(config.state_path) not in pushed
+
+
+def test_sync_publishes_new_format_posts_under_their_own_path_and_sends_them_first(config: Config) -> None:
+    import json
+
+    from PIL import Image
+
+    folder = config.source_dir / "_posts" / "00001-ranking"
+    folder.mkdir(parents=True)
+    for index in (1, 2, 3):
+        Image.new("RGB", (1080, 1920), (10, 20, 30)).save(folder / f"slide_{index:02d}.png")
+    (folder / "post.json").write_text(
+        json.dumps({"key": "00001-ranking", "format": "ranking", "title": "怒らせると一番怖いタイプランキング",
+                    "description": "1位は誰？\n\n#MBTI"}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    _synced(config)
+
+    uploads = load_manifest(manifest_path(config.publish_dir))
+    fresh = next(upload for upload in uploads if upload.key == "posts/00001-ranking")
+    assert fresh.images == tuple(f"{config.pages_base_url}/posts/00001-ranking/{n:02d}.jpg" for n in (1, 2, 3))
+    assert (config.publish_dir / "posts" / "00001-ranking" / "01.jpg").exists()
+
+    _authorize(config)
+    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
+        "tiktok_poster.cli.pages.wait_until_live"
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", return_value="id-1") as send_mock:
+        assert _run_post(_post_args(count=1)) == 0
+
+    title, description, images = send_mock.call_args.args[1:4]
+    assert title == "怒らせると一番怖いタイプランキング"
+    assert description == "1位は誰？\n\n#MBTI"
+    assert len(images) == 3

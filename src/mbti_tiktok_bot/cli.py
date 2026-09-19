@@ -6,6 +6,7 @@ from pathlib import Path
 
 from mbti_tiktok_bot.config import load_config
 from mbti_tiktok_bot.daemon import DEFAULT_DAEMON_TIMES, MAX_BACKLOG_DAYS, DaemonState, load_daemon_state, normalize_times, run_daemon, save_daemon_state
+from mbti_tiktok_bot.formats.produce import due_by, produce, produced_on
 from mbti_tiktok_bot.phone_export import export_daily_results_to_phone
 from mbti_tiktok_bot.pipeline import build_daily_bundle, build_daily_bundles, load_daily_results, load_existing_visual_results, refresh_existing_visuals
 from mbti_tiktok_bot.planner import advance_series_state, resolve_target_date
@@ -23,10 +24,11 @@ def _build_parser() -> argparse.ArgumentParser:
     daily.add_argument("--dry-run", action="store_true", help="Build assets without any extra side effects")
     daily.add_argument("--export-phone", action="store_true", help="Export this run's assets to a phone sync folder")
 
-    slot = subparsers.add_parser("run-slot", help="Generate one scheduled image asset set")
+    slot = subparsers.add_parser("run-slot", help="Make the posts that are due by now")
     slot.add_argument("--date", help="Target date in YYYY-MM-DD")
-    slot.add_argument("--dry-run", action="store_true", help="Build assets without writing exports or advancing state")
-    slot.add_argument("--export-phone", action="store_true", help="Export this run's asset set to a phone sync folder")
+    slot.add_argument("--dry-run", action="store_true", help="Report how many are due without making them")
+    slot.add_argument("--count", type=int, help="Make this many regardless of what is due")
+    slot.add_argument("--times", nargs="+", default=list(DEFAULT_DAEMON_TIMES), help="The day's slot times, for the quota")
 
     daemon = subparsers.add_parser("run-daemon", help="Keep running and execute slot exports at configured times")
     daemon.add_argument("--times", nargs="+", default=list(DEFAULT_DAEMON_TIMES), help="Daily run times in HH:MM format")
@@ -98,15 +100,6 @@ def _should_advance_series(args: argparse.Namespace, reused_existing: bool) -> b
     return not reused_existing and not args.dry_run and _should_reuse_existing_outputs(args)
 
 
-def _build_slot_results(config, target_date):
-    return build_daily_bundles(
-        target_date=target_date,
-        config=config,
-        count=config.slot_posts,
-        append_summary=True,
-    )
-
-
 def _date_range(start_date: date, end_date: date):
     current = start_date
     while current <= end_date:
@@ -125,6 +118,11 @@ def _due_slot_times_for_date(target_date: date, scheduled_times: list[str], now:
 
 
 def _reconcile_daemon_outputs(config, scheduled_times: list[str], dry_run: bool) -> int:
+    """Make whatever the recent days are missing, judged by the posts on disk.
+
+    A slot run tops a date up to its quota, so one run per date is enough and
+    a date that is already full costs nothing.
+    """
     if dry_run:
         return 0
 
@@ -141,46 +139,21 @@ def _reconcile_daemon_outputs(config, scheduled_times: list[str], dry_run: bool)
         if parsed_state_date <= today:
             start_date = parsed_state_date
 
-    # Same cap as pending_slot_runs. This walk fills missing slots for every date
-    # it visits, so stale state here means one run per slot per missed day.
+    # Same cap as pending_slot_runs: after a long outage only yesterday and
+    # today are made up, not a post for every day the PC was off.
     earliest_date = today - timedelta(days=max(MAX_BACKLOG_DAYS, 0))
     start_date = max(start_date, earliest_date)
 
-    today_results = load_daily_results(today, config)
     for target_date in _date_range(start_date, today):
-        results = load_daily_results(target_date, config)
-        if results:
-            export_daily_results_to_phone(
-                config=config,
-                target_date=target_date,
-                results=results,
-                reset_export_dir=False,
-            )
-
-        due_slots = _due_slot_times_for_date(target_date, normalized_times, now)
-        while len(results) < len(due_slots):
-            exit_code = _run_slot_command(config, target_date, False, True)
-            if exit_code != 0:
-                return exit_code
-            previous_count = len(results)
-            results = load_daily_results(target_date, config)
-            if len(results) <= previous_count:
-                # A slot that reports success without leaving a loadable result
-                # would otherwise spin here forever, generating as it goes.
-                print(
-                    f"Slot run for {target_date} produced no new result; "
-                    f"stopping backfill at {len(results)}/{len(due_slots)}"
-                )
-                return 1
-
-        if target_date == today:
-            today_results = results
+        exit_code = _run_slot_command(config, target_date, False, normalized_times)
+        if exit_code != 0:
+            return exit_code
 
     save_daemon_state(
         config,
         DaemonState(
             current_date=today.isoformat(),
-            completed_slots=normalized_times[: min(len(today_results), len(normalized_times))],
+            completed_slots=_due_slot_times_for_date(today, normalized_times, now),
         ),
     )
     return 0
@@ -221,28 +194,20 @@ def _run_refresh_visuals(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_slot_command(config, target_date, dry_run: bool, export_phone: bool) -> int:
-    results = _build_slot_results(config, target_date)
-
-    _print_build_results(results)
-    if dry_run:
-        for result in results:
-            print(f"Dry run complete: {result.output_dir}")
+def _run_slot_command(config, target_date, dry_run: bool, times: list[str] | None = None,
+                      count: int | None = None) -> int:
+    """Make the posts the date is short of, or `count` of them when given."""
+    made = len(produced_on(config, target_date))
+    if count is None:
+        schedule = normalize_times(times or list(DEFAULT_DAEMON_TIMES))
+        count = due_by(target_date, schedule, datetime.now(), config.posts_per_day) - made
+    if count <= 0:
+        print(f"{target_date.isoformat()}: {made} post(s) made, none due yet")
         return 0
-
-    if export_phone:
-        export_result = export_daily_results_to_phone(
-            config=config,
-            target_date=target_date,
-            results=results,
-            reset_export_dir=False,
-        )
-        print(f"Phone export ready: {export_result.export_dir}")
-
-    next_post_index = advance_series_state(config, len(results))
-    print(f"Series advanced: next post index {next_post_index}")
-    for result in results:
-        print(f"Build complete: {result.output_dir}")
+    if dry_run:
+        print(f"{target_date.isoformat()}: {made} post(s) made, would make {count} more")
+        return 0
+    produce(config, target_date, count)
     return 0
 
 
@@ -302,7 +267,7 @@ def _run_send_telegram(args: argparse.Namespace) -> int:
 def _run_slot(args: argparse.Namespace) -> int:
     config = load_config(Path.cwd())
     target_date = resolve_target_date(args.date)
-    return _run_slot_command(config, target_date, args.dry_run, _should_export_to_phone(args, config))
+    return _run_slot_command(config, target_date, args.dry_run, args.times, args.count)
 
 
 def _run_daemon(args: argparse.Namespace) -> int:
@@ -322,12 +287,7 @@ def _run_daemon(args: argparse.Namespace) -> int:
     print("Stop with Ctrl+C")
 
     def _slot_runner(target_date: str) -> int:
-        return _run_slot_command(
-            config,
-            resolve_target_date(target_date),
-            args.dry_run,
-            not args.dry_run,
-        )
+        return _run_slot_command(config, resolve_target_date(target_date), args.dry_run, args.times)
 
     try:
         return run_daemon(

@@ -73,6 +73,7 @@ class AppConfig:
     video_height: int
     daily_posts: int
     slot_posts: int
+    posts_per_day: int
     topic_depth: str
     default_hashtags: list[str]
     phone_export_auto: bool
@@ -111,6 +112,10 @@ def load_config(project_root: Path | None = None) -> AppConfig:
         # covers all 16 MBTI types in a day, so a theme starts and
         # finishes on the same date instead of straddling five of them.
         slot_posts=int(settings.get("SLOT_POSTS", "4")),
+        # The scheduled slots draw this many posts a day between them. It is the
+        # poster's POSTS_PER_DAY, so the stock of new posts neither runs dry nor
+        # piles up; the old themed carousels fill any gap.
+        posts_per_day=int(settings.get("POSTS_PER_DAY", "10")),
         topic_depth=(settings.get("TOPIC_DEPTH", "deep").strip().lower() or "deep"),
         default_hashtags=default_hashtags,
         phone_export_auto=_bool_env(settings, "PHONE_EXPORT_AUTO", default=False),

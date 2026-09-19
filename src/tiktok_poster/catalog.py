@@ -60,6 +60,41 @@ class Post:
         return " ".join(self.hashtags)
 
 
+# The generator's own formats (rankings, manuals, ...) are handed off here,
+# one folder per post, each titled and captioned by the generator itself.
+FRESH_DIR = "_posts"
+FRESH_PREFIX = "posts"
+FRESH_META = "post.json"
+
+
+@dataclass(frozen=True, slots=True)
+class FreshPost:
+    """A post in one of the generator's formats: complete on its own.
+
+    Unlike a themed carousel it needs no theme to be drawn to the end before it
+    may go out, and its title and caption come from the generator.
+    """
+
+    name: str
+    format: str
+    title: str
+    description: str
+    source_dir: Path
+    slides: tuple[Path, ...]
+
+    @property
+    def key(self) -> str:
+        return f"{FRESH_PREFIX}/{self.name}"
+
+    @property
+    def theme(self) -> str:
+        return self.format
+
+
+def is_fresh(key: str) -> bool:
+    return key.startswith(f"{FRESH_PREFIX}/")
+
+
 def _slides_in(post_dir: Path) -> tuple[Path, ...]:
     numbered: list[tuple[int, Path]] = []
     for child in post_dir.iterdir():
@@ -76,7 +111,7 @@ def scan(source_dir: Path) -> list[Post]:
         raise FileNotFoundError(f"Source directory not found: {source_dir}")
 
     posts: list[Post] = []
-    for theme_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
+    for theme_dir in sorted(p for p in source_dir.iterdir() if p.is_dir() and p.name != FRESH_DIR):
         for post_dir in sorted(p for p in theme_dir.iterdir() if p.is_dir()):
             match = POST_DIR_RE.match(post_dir.name)
             if match is None:
@@ -94,6 +129,37 @@ def scan(source_dir: Path) -> list[Post]:
                 )
             )
     posts.sort(key=lambda post: (post.theme, post.order))
+    return posts
+
+
+def scan_fresh(source_dir: Path) -> list[FreshPost]:
+    """Every finished post in the generator's formats, oldest first.
+
+    Folder names start with the post's number, so name order is the order they
+    were made in. A folder without its post.json is still being written.
+    """
+    root = source_dir / FRESH_DIR
+    if not root.is_dir():
+        return []
+    posts: list[FreshPost] = []
+    for folder in sorted(p for p in root.iterdir() if p.is_dir()):
+        try:
+            meta = json.loads((folder / FRESH_META).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        slides = _slides_in(folder)
+        if not slides or not isinstance(meta, dict) or not meta.get("title"):
+            continue
+        posts.append(
+            FreshPost(
+                name=folder.name,
+                format=str(meta.get("format", "")),
+                title=str(meta["title"]),
+                description=str(meta.get("description", "")),
+                source_dir=folder,
+                slides=slides[:MAX_SLIDES],
+            )
+        )
     return posts
 
 
@@ -217,6 +283,10 @@ def send_order(
 ) -> tuple[list[Upload], tuple[str, int] | None]:
     """What to send next, strictly in order, and the slot the queue waits on.
 
+    Posts in the generator's own formats go first, oldest first. The themed
+    carousels are no longer drawn; what is left of them follows, so they fill
+    a day only when nothing new is waiting.
+
     `posted` is the keys already sent, in the order they went out, so the order
     a theme was started in is the order it is finished in.
 
@@ -226,8 +296,13 @@ def send_order(
     and then moved on, which is the gap this exists to prevent. The queue picks
     up again by itself once `sync` publishes the missing slot.
     """
+    already = set(posted)
+    fresh = sorted((u for u in uploads if is_fresh(u.key) and u.key not in already), key=lambda u: u.key)
+
     published: dict[str, dict[int, Upload]] = {}
     for upload in uploads:
+        if is_fresh(upload.key):
+            continue
         theme, _, _ = upload.key.partition("/")
         if upload.slot:
             published.setdefault(theme, {})[upload.slot] = upload
@@ -237,6 +312,8 @@ def send_order(
     sent: dict[str, set[int]] = {}
     started: dict[str, int] = {}
     for key in posted:
+        if is_fresh(key):
+            continue
         theme, _, name = key.partition("/")
         started.setdefault(theme, len(started))
         match = POST_DIR_RE.match(name)
@@ -247,7 +324,7 @@ def send_order(
     manifest_order = {theme: index for index, theme in enumerate(published)}
     themes = sorted(published, key=lambda theme: (started.get(theme, untouched), manifest_order[theme]))
 
-    queue: list[Upload] = []
+    queue: list[Upload] = list(fresh)
     for theme in themes:
         slots, done = published[theme], sent.get(theme, set())
         for slot in range(1, size + 1):
