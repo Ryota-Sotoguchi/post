@@ -20,7 +20,14 @@ from functools import lru_cache
 from PIL import ImageFont
 
 from mbti_tiktok_bot.design.fonts import face
-from mbti_tiktok_bot.typeset import break_points, wrap_text
+from mbti_tiktok_bot.typeset import (
+    LINE_END_FORBIDDEN,
+    LINE_START_FORBIDDEN,
+    SINGLE_CHAR_PARTICLES,
+    _is_content_char,
+    break_points,
+    wrap_text,
+)
 
 # Ink in the right half of the em box: set at half width, shifted left.
 OPENING = frozenset("「『（［｛〈《【〔“‘")
@@ -119,6 +126,47 @@ def _protected_spans(text: str) -> list[tuple[int, int]]:
     return spans
 
 
+# Particle pairs that read as one compound; breaking between them is wrong.
+_COMPOUNDS = frozenset((
+    "では", "でも", "には", "にも", "とは", "とも", "との", "への", "へは", "のは",
+    "のが", "のを", "のに", "のも", "のと", "をも", "がの",
+))
+
+
+def _is_hiragana(char: str) -> bool:
+    return "\u3041" <= char <= "\u309f"
+
+
+def _is_kanji(char: str) -> bool:
+    return "\u4e00" <= char <= "\u9fff" or char == "々"
+
+
+def _soft_points(text: str) -> set[int]:
+    """Weaker bunsetsu starts than typeset proposes, for headlines only.
+
+    typeset will not break between two particles, so 既読でとりあえず放置派
+    offered one cut: 既読でと / りあえず. Two more places are plausible: a
+    particle after a content word that is followed by a word, not by a second
+    particle (既読で / とりあえず), and hiragana running into kanji or katakana
+    (とりあえず / 放置派). お and ご are left out; they are prefixes (お茶).
+    So is a lone okurigana between two kanji, which is a compound verb
+    (寄り添う, 思い出す), not a boundary.
+    """
+    points: set[int] = set()
+    for index in range(1, len(text)):
+        previous, following = text[index - 1], text[index]
+        if following in LINE_START_FORBIDDEN or previous in LINE_END_FORBIDDEN:
+            continue
+        if (previous in SINGLE_CHAR_PARTICLES and index >= 2 and _is_content_char(text[index - 2])
+                and _is_hiragana(following) and previous + following not in _COMPOUNDS):
+            points.add(index)
+        elif _is_hiragana(previous) and previous not in "おご" and _is_content_char(following):
+            if index >= 2 and _is_kanji(text[index - 2]) and _is_kanji(following):
+                continue
+            points.add(index)
+    return points
+
+
 def headline_lines(
     text: str,
     font: ImageFont.FreeTypeFont,
@@ -131,9 +179,11 @@ def headline_lines(
 
     The general wrapper fills lines and treats を as a fine place to break, so
     心を許したサイン came out as 心を / 許したサイン at every size. Headlines are
-    short enough to search properly: candidate breaks are the preferred and
-    fallback points outside any protected phrase, and among the partitions with
-    the fewest lines that fit, the one with the most even line lengths wins.
+    short enough to search properly: candidate breaks are the preferred, soft
+    and fallback points outside any protected phrase, and among the partitions
+    with the fewest lines that fit, the one with the most even line lengths
+    wins. Soft and fallback breaks carry a cost, so a slightly uneven split at
+    a clean boundary beats an even one inside a word.
     Returns None when no partition fits.
     """
     if not text:
@@ -141,9 +191,13 @@ def headline_lines(
     if line_width(text, font, tracking, compress) <= max_width:
         return [text]
     preferred, fallback = break_points(text)
+    soft = _soft_points(text) - preferred
+    fallback = fallback - preferred - soft
+    unit = (max_width * 0.25) ** 2
+    penalty = {**{position: 4 * unit for position in fallback}, **{position: unit for position in soft}}
     spans = _protected_spans(text)
     cuts = sorted(
-        position for position in preferred | fallback
+        position for position in preferred | soft | fallback
         if 0 < position < len(text) and not any(start < position < end for start, end in spans)
     )
     points = [0, *cuts, len(text)]
@@ -170,7 +224,7 @@ def headline_lines(
                     span = width(start, end)
                     if span > max_width:
                         continue
-                    cost = best[(line - 1, start)][0] + (span - target) ** 2
+                    cost = best[(line - 1, start)][0] + (span - target) ** 2 + penalty.get(end, 0.0)
                     if (line, end) not in best or cost < best[(line, end)][0]:
                         best[(line, end)] = (cost, start)
         if (count, len(text)) in best:
@@ -197,7 +251,7 @@ def _bad_breaks(text: str, lines: list[str], strict: bool) -> int:
     if strict and len(lines) > 1:
         flat = "".join(lines)
         preferred, fallback = break_points(flat)
-        allowed = preferred | fallback
+        allowed = preferred | fallback | _soft_points(flat)
         position = 0
         for line in lines[:-1]:
             position += len(line)

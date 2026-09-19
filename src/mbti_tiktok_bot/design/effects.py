@@ -2,8 +2,8 @@
 
 Styles lay things out in logical 1080x1920 coordinates and convert with
 ScaledDraw.px() before calling these. Everything here is Pillow only and
-deterministic: grain comes from Image.effect_noise, which is seeded per call
-from the arguments rather than from a global generator.
+deterministic: grain comes from noise(), which is seeded per call rather than
+drawn from a global generator.
 """
 
 from __future__ import annotations
@@ -97,9 +97,21 @@ def grain(image: Image.Image, amount: float = 0.06, seed: int = 0) -> Image.Imag
     return result
 
 
-def trim(image: Image.Image) -> Image.Image:
-    box = image.getchannel("A").getbbox()
-    return image.crop(box) if box else image
+def trim(image: Image.Image, floor: int = 8) -> Image.Image:
+    """Crop to the figure, ignoring near-invisible alpha.
+
+    Four of the illustrations carry alpha 1-7 across the whole canvas; trimming
+    on any non-zero alpha kept the full 1024x1525 frame, and those figures came
+    out a third smaller than the rest. The haze is dropped as well as ignored,
+    so it cannot turn into a visible box under a glow or an outline.
+    """
+    alpha = image.getchannel("A").point(lambda value: value if value >= floor else 0)
+    box = alpha.getbbox()
+    if not box:
+        return image
+    cleaned = image.copy()
+    cleaned.putalpha(alpha)
+    return cleaned.crop(box)
 
 
 def fit_height(image: Image.Image, height: int) -> Image.Image:
@@ -178,7 +190,9 @@ def shadow(image: Image.Image, offset: tuple[int, int], blur: float, color: RGBA
 
 def duotone(image: Image.Image, dark: str, light: str, mid: str | None = None) -> Image.Image:
     """Map luminance onto two (or three) colours, keeping the alpha."""
-    grey = ImageOps.autocontrast(image.convert("L"), cutoff=1)
+    # The histogram is taken over the figure only: the transparent surround
+    # is arbitrary RGB and dragged the stretch towards flat grey.
+    grey = ImageOps.autocontrast(image.convert("L"), cutoff=1, mask=image.getchannel("A").point(lambda v: 255 if v > 127 else 0))
     kwargs = {"mid": hex_rgb(mid)} if mid else {}
     toned = ImageOps.colorize(grey, black=hex_rgb(dark), white=hex_rgb(light), **kwargs).convert("RGBA")
     toned.putalpha(image.getchannel("A"))

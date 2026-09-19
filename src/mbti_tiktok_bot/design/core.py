@@ -1,4 +1,4 @@
-"""The pieces every style shares: what a slide is, and how chips are laid out.
+"""What every look and layout shares: the canvas, the context, chips.
 
 Coordinates are logical 1080x1920 throughout; ScaledDraw turns them into
 render-scale pixels.
@@ -7,16 +7,15 @@ render-scale pixels.
 from __future__ import annotations
 
 import colorsys
-import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 
 from PIL import Image
 
 from mbti_tiktok_bot.catalog import Palette
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.design import text as T
-from mbti_tiktok_bot.design.effects import hex_rgb
-from mbti_tiktok_bot.models import ContentPackage
+from mbti_tiktok_bot.design.effects import hex_rgb, trim
 
 WIDTH = 1080
 HEIGHT = 1920
@@ -30,24 +29,17 @@ SAFE_BOTTOM = 1540
 SAFE_WIDTH = SAFE_RIGHT - SAFE_LEFT
 
 
-@dataclass(frozen=True, slots=True)
-class Slide:
-    kind: str  # "cover", "body" or "closer"
-    index: int  # position in the carousel, from 0
-    number: int  # 1-based position among the body slides; 0 on cover and closer
-    total: int  # how many body slides the carousel has
-    title: str
-    body: str
-    chips: tuple[str, ...] = ()
+@lru_cache(maxsize=32)
+def _load_cutout(path: str) -> Image.Image:
+    with Image.open(path) as opened:
+        return trim(opened.convert("RGBA"))
 
 
 @dataclass(slots=True)
 class Context:
-    package: ContentPackage
     config: AppConfig
     palette: Palette
-    topic_seed: int
-    subject: Image.Image  # the character cutout, trimmed to its alpha
+    seed: int
     scale: int
     cache: dict = field(default_factory=dict)
 
@@ -61,57 +53,22 @@ class Context:
     def box(self, box: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
         return tuple(self.px(value) for value in box)  # type: ignore[return-value]
 
+    def subject_of(self, mbti: str) -> Image.Image:
+        """The provided illustration for a type, trimmed to its alpha."""
+        from mbti_tiktok_bot.visuals import _resolve_illustration_path
 
-# The trait lists in the copy used to be joined with " / " and dropped into
-# prose, which put 場を明るくする / 愛嬌がある / ... on the slide verbatim. A
-# leading run like that becomes chips; one in the middle of a sentence is
-# re-joined with a middle dot so it reads as Japanese.
-# A trait is a short phrase with no comma or space in it; a sentence that
-# merely contains a list later on must not be mistaken for one.
-_TRAIT = r"[^。/、\s]{1,20}"
-_LEADING_LIST = re.compile(rf"^((?:{_TRAIT} / )+{_TRAIT})。")
-
-
-# Templates write f"実際は {traits} が出ている", which leaves ASCII spaces between
-# Japanese words. Japanese is set without them; Latin words keep theirs.
-_SPACE_BETWEEN_WIDE = re.compile(r"(?<=[^\x00-\x7f])\s+(?=[^\x00-\x7f])")
-
-
-def split_chips(body: str) -> tuple[tuple[str, ...], str]:
-    match = _LEADING_LIST.match(body)
-    if match:
-        chips = tuple(part.strip() for part in match.group(1).split(" / ") if part.strip())
-        body = body[match.end():].strip()
-    else:
-        chips = ()
-    body = body.replace(" / ", "・")
-    return chips, _SPACE_BETWEEN_WIDE.sub("", body)
+        source = _resolve_illustration_path(self.config, mbti)
+        if source is None:
+            # Substituting a generated figure for a missing type is exactly what
+            # the provided-material policy rules out.
+            raise FileNotFoundError(
+                f"Provided MBTI material is required for {mbti}; "
+                f"place it in {self.config.official_images_dir} or {self.config.assets_dir}"
+            )
+        return _load_cutout(str(source))
 
 
-def slides_for(package: ContentPackage) -> list[Slide]:
-    """Turn the render package's scenes into cover, body and closer slides."""
-    scenes = package.scenes
-    total = max(len(scenes) - 2, 0)
-    result: list[Slide] = []
-    for index, scene in enumerate(scenes):
-        if index == 0:
-            kind, number = "cover", 0
-        elif index == len(scenes) - 1:
-            kind, number = "closer", 0
-        else:
-            kind, number = "body", index
-        chips, body = split_chips(scene.body)
-        result.append(Slide(kind, index, number, total, scene.title, body, chips))
-    return result
-
-
-def hue_shift(color: str, degrees: float, saturation: float = 1.0, value: float = 1.0) -> str:
-    r, g, b = (channel / 255 for channel in hex_rgb(color))
-    h, s, v = colorsys.rgb_to_hsv(r, g, b)
-    h = (h + degrees / 360) % 1.0
-    s = min(max(s * saturation, 0.0), 1.0)
-    v = min(max(v * value, 0.0), 1.0)
-    return "#%02x%02x%02x" % tuple(round(channel * 255) for channel in colorsys.hsv_to_rgb(h, s, v))
+# --- colour -----------------------------------------------------------------
 
 
 def hue_of(color: str) -> float:
@@ -144,16 +101,7 @@ def neon_partner(color: str) -> str:
     return "#%02x%02x%02x" % tuple(round(c * 255) for c in colorsys.hsv_to_rgb(target / 360, 0.78, 1.0))
 
 
-def luminance(color: str) -> float:
-    def channel(value: float) -> float:
-        value /= 255
-        return value / 12.92 if value <= 0.04045 else ((value + 0.055) / 1.055) ** 2.4
-
-    r, g, b = hex_rgb(color)
-    return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
-
-
-# --- chips -----------------------------------------------------------------
+# --- chips ------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
@@ -172,9 +120,10 @@ class Chip:
     color: tuple[int, int, int, int]
     outline: tuple[int, int, int, int] | None = None
     tracking_em: float = 0.04
-    pad_x: float = 0.9  # horizontal padding, in multiples of size
+    pad_x: float = 0.9
     height_em: float = 2.0
     stroke: int = 2
+    square: bool = False
 
     @property
     def block(self) -> T.Block:
@@ -190,25 +139,22 @@ class Chip:
 
     def resized(self, size: int) -> "Chip":
         return Chip(self.label, self.role, size, self.fill, self.color, self.outline,
-                    self.tracking_em, self.pad_x, self.height_em, self.stroke)
+                    self.tracking_em, self.pad_x, self.height_em, self.stroke, self.square)
 
 
 def draw_chip(canvas, chip: Chip, x: float, y: float) -> float:
     """Draw one chip with its top-left at (x, y). Returns its width."""
     width, height = chip.width, chip.height
-    radius = height / 2
     if chip.fill is not None or chip.outline is not None:
-        canvas.rounded_rectangle(
-            (x, y, x + width, y + height),
-            radius=radius,
-            fill=chip.fill,
-            outline=chip.outline,
-            width=chip.stroke if chip.outline else 1,
-        )
+        box = (x, y, x + width, y + height)
+        if chip.square:
+            canvas.rectangle(box, fill=chip.fill, outline=chip.outline, width=chip.stroke if chip.outline else 1)
+        else:
+            canvas.rounded_rectangle(box, radius=height / 2, fill=chip.fill, outline=chip.outline,
+                                     width=chip.stroke if chip.outline else 1)
     block = chip.block
     # Centre the ink, not the em box: textbbox origins put the glyphs low.
-    text_y = y + (height - T.ink_height(block)) / 2
-    T.draw(canvas, block, x + chip.size * chip.pad_x, text_y, chip.color)
+    T.draw(canvas, block, x + chip.size * chip.pad_x, y + (height - T.ink_height(block)) / 2, chip.color)
     return width
 
 
@@ -216,7 +162,7 @@ def chip_row(canvas, chips: list[Chip], x: float, y: float, max_width: float, ga
              align: str = "left", draw: bool = True) -> tuple[float, float]:
     """Lay chips left to right from one origin, dropping those that do not fit.
 
-    A single chip that is too wide on its own is shrunk rather than dropped.
+    A single chip too wide on its own is shrunk rather than dropped.
     Returns the (width, height) actually used.
     """
     placed: list[Chip] = []
@@ -237,15 +183,19 @@ def chip_row(canvas, chips: list[Chip], x: float, y: float, max_width: float, ga
         return (0.0, 0.0)
     height = max(chip.height for chip in placed)
     if draw:
-        start = x + (max_width - used) if align == "right" else (x + (max_width - used) / 2 if align == "center" else x)
-        pen = start
+        if align == "right":
+            pen = x + max_width - used
+        elif align == "center":
+            pen = x + (max_width - used) / 2
+        else:
+            pen = x
         for chip in placed:
             pen += draw_chip(canvas, chip, pen, y + (height - chip.height) / 2) + gap
     return (used, height)
 
 
 def chip_flow(canvas, chips: list[Chip], x: float, y: float, max_width: float, gap: float = 14,
-              line_gap: float = 14, max_rows: int = 3, draw: bool = True) -> float:
+              line_gap: float = 14, max_rows: int = 3, draw: bool = True, align: str = "left") -> float:
     """Wrap chips onto as many rows as needed. Returns the height used."""
     rows: list[list[Chip]] = [[]]
     used = 0.0
@@ -263,6 +213,6 @@ def chip_flow(canvas, chips: list[Chip], x: float, y: float, max_width: float, g
     for row in rows:
         if not row:
             continue
-        _, height = chip_row(canvas, row, x, top, max_width, gap, draw=draw)
+        _, height = chip_row(canvas, row, x, top, max_width, gap, align=align, draw=draw)
         top += height + line_gap
     return top - y - line_gap if top > y else 0.0

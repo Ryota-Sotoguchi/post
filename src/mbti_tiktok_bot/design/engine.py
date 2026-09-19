@@ -1,66 +1,41 @@
-"""Render a carousel with one of the style packs.
-
-The style is chosen per topic, from the same topic seed the palette uses, so
-all sixteen MBTI types of a series come out in one look; only the character
-and the type name differ between them.
-"""
+"""Render a post: pick its look and palette, lay out each card, compose, save."""
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
-from types import ModuleType
 
+from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS, TYPE_DATA
 from mbti_tiktok_bot.config import AppConfig
-from mbti_tiktok_bot.design.core import HEIGHT, WIDTH, Context, slides_for
-from mbti_tiktok_bot.design.kit import load_subject
-from mbti_tiktok_bot.design.styles import STYLES
-from mbti_tiktok_bot.models import ContentPackage, SceneRenderAssets
-from mbti_tiktok_bot.visuals import (
-    RENDER_SCALE,
-    _compose_scene,
-    _palette,
-    _resolve_illustration_path,
-    _save_layer,
-    _seed_choice,
-    _visual_identity,
-    _visual_seed,
-)
+from mbti_tiktok_bot.design.cards import LAYOUTS
+from mbti_tiktok_bot.design.core import HEIGHT, WIDTH, Context
+from mbti_tiktok_bot.design.looks import LOOK_ORDER, LOOKS
+from mbti_tiktok_bot.formats.model import Post
+from mbti_tiktok_bot.models import SceneRenderAssets
+from mbti_tiktok_bot.visuals import RENDER_SCALE, _compose_scene, _save_layer, _seed_choice
 
-STYLE_ENV = "MBTI_STYLE"
+GROUPS = ("分析家", "外交官", "番人", "探検家")
 
 
-def style_name(package: ContentPackage) -> str:
-    names = sorted(STYLES)
-    return names[_seed_choice(_visual_seed(package, include_mbti=False), "style", len(names))]
+def post_seed(post: Post) -> int:
+    return int.from_bytes(hashlib.sha256(f"{post.key}|{post.title}".encode("utf-8")).digest()[:8], "big")
 
 
-def _context(package: ContentPackage, config: AppConfig) -> Context:
-    source = _resolve_illustration_path(config, package.mbti_type)
-    if source is None:
-        # Substituting a generated figure for a missing type is exactly what
-        # the provided-material policy rules out.
-        raise FileNotFoundError(
-            f"Provided MBTI material is required for {package.mbti_type}; "
-            f"place it in {config.official_images_dir} or {config.assets_dir}"
-        )
-    return Context(
-        package=package,
-        config=config,
-        palette=_palette(package),
-        topic_seed=_visual_seed(package, include_mbti=False),
-        subject=load_subject(str(source)),
-        scale=RENDER_SCALE,
-    )
+def look_name(post: Post) -> str:
+    """Looks rotate with the post number, so the feed never shows one look twice running."""
+    return LOOK_ORDER[post.seq % len(LOOK_ORDER)]
 
 
-def render_carousel(
-    package: ContentPackage,
-    config: AppConfig,
-    slides_dir: Path,
-    style: str | None = None,
-) -> list[SceneRenderAssets]:
+def palette_for(post: Post):
+    seed = post_seed(post)
+    group = str(TYPE_DATA[post.focus]["group"]) if post.focus else GROUPS[_seed_choice(seed, "group", len(GROUPS))]
+    variants = GROUP_PALETTE_VARIANTS[group]
+    return variants[_seed_choice(seed, "palette", len(variants))]
+
+
+def render_post(post: Post, config: AppConfig, slides_dir: Path, look: str | None = None) -> list[SceneRenderAssets]:
     if slides_dir.exists():
         shutil.rmtree(slides_dir)
     slides_dir.mkdir(parents=True, exist_ok=True)
@@ -68,38 +43,27 @@ def render_carousel(
     shutil.rmtree(render_dir, ignore_errors=True)
     keep = config.keep_render_layers
 
-    ctx = _context(package, config)
-    chosen = style or style_name(package)
-    module: ModuleType = STYLES[chosen]
-
-    identity = _visual_identity(package)
-    identity.update({"version": 6, "style": chosen})
+    ctx = Context(config=config, palette=palette_for(post), seed=post_seed(post), scale=RENDER_SCALE)
+    chosen = look or look_name(post)
+    style = LOOKS[chosen](ctx)
     (slides_dir.parent / "visual_identity.json").write_text(
-        json.dumps(identity, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps({"version": 7, "look": chosen, "palette": ctx.palette.name, "format": post.format,
+                    "render_scale": RENDER_SCALE}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
     )
 
     assets: list[SceneRenderAssets] = []
-    for slide in slides_for(package):
-        layers = getattr(module, slide.kind)(ctx, slide)
-        paths = {
-            name: render_dir / f"{name}_{slide.index + 1:02d}.png"
-            for name in ("background", "accent", "character", "text")
-        }
+    for index, card in enumerate(post.cards, start=1):
+        layers = LAYOUTS[card.kind](style, post, card)
+        paths = {name: render_dir / f"{name}_{index:02d}.png" for name in ("background", "accent", "character", "text")}
         if keep:
             for name, path in paths.items():
                 _save_layer(getattr(layers, name), path)
-        _compose_scene(
-            layers.stack(),
-            (WIDTH, HEIGHT),
-            slides_dir / f"slide_{slide.index + 1:02d}.png",
-            base=layers.base,
-        )
-        assets.append(
-            SceneRenderAssets(
-                background_path=paths["background"],
-                text_overlay_path=paths["text"],
-                character_overlay_path=paths["character"],
-                accent_overlay_path=paths["accent"],
-            )
-        )
+        _compose_scene(layers.stack(), (WIDTH, HEIGHT), slides_dir / f"slide_{index:02d}.png", base=layers.base)
+        assets.append(SceneRenderAssets(
+            background_path=paths["background"],
+            text_overlay_path=paths["text"],
+            character_overlay_path=paths["character"],
+            accent_overlay_path=paths["accent"],
+        ))
     return assets
