@@ -1,5 +1,5 @@
 {
-  "next_post_index": 288,
+  "next_post_index": 292,
   "topic_history": [
     {
       "key": "generated_d5597e3e07c0",
@@ -128,11 +128,74 @@
       "source": "procedural"
     },
     {
-      "key": "generated_f4456d3832f9",
-      "name": "と本音で話すための否定されない聞かれ方",
-      "theme": "コミュニケーション",
+      "key": "generated_61326f72c28c",
+      "name": "優先順位で示す好意の小さな選択",
+      "theme": "優先順位",
+      "blueprint": "like_attitude",
+      "source": "llm"
+    },
+    {
+      "key": "generated_dd6efb09d97d",
+      "name": "好意がある時に無意識に繰り返す確認行動",
+      "theme": "確認行動",
+      "blueprint": "crush_actions",
+      "source": "llm"
+    },
+    {
+      "key": "generated_eec9e154827d",
+      "name": "LINEで境界を試す文面の変化",
+      "theme": "LINEでの境界線",
+      "blueprint": "line_shift",
+      "source": "llm"
+    },
+    {
+      "key": "generated_dbf27ddb67b7",
+      "name": "本心を預ける前の小さな任せ方",
+      "theme": "弱さの預け方",
+      "blueprint": "trust_sign",
+      "source": "llm"
+    },
+    {
+      "key": "generated_2ae43219a044",
+      "name": "限界が近づくと増える細かなルールの変化",
+      "theme": "限界サイン",
+      "blueprint": "stress_signal",
+      "source": "llm"
+    },
+    {
+      "key": "generated_d2af2fe70cff",
+      "name": "境界を守らせるための注意の投げ方",
+      "theme": "境界を守らせる方法",
+      "blueprint": "攻略",
+      "source": "llm"
+    },
+    {
+      "key": "generated_3b4bcfeba10f",
+      "name": "仲が深まるほど質が変わる沈黙の使い方",
+      "theme": "沈黙の質",
+      "blueprint": "friendship_shift",
+      "source": "llm"
+    },
+    {
+      "key": "generated_a726cea3d44b",
+      "name": "仕事で断る前に出す小さな合図",
+      "theme": "仕事の境界線",
+      "blueprint": "work_trust",
+      "source": "llm"
+    },
+    {
+      "key": "generated_43cd8ed152cb",
+      "name": "回復中に出す助けを求める控えめな合図",
+      "theme": "助けの出し方",
+      "blueprint": "recharge_style",
+      "source": "llm"
+    },
+    {
+      "key": "generated_92253b3e0c90",
+      "name": "本音を測るための塩梅を探る前置き質問",
+      "theme": "コミュニケーションの温度",
       "blueprint": "communication_style",
-      "source": "procedural"
+      "source": "llm"
     }
   ],
   "retired_topics": [
@@ -143,6 +206,14 @@
       "blueprint": "friendship_shift",
       "source": "procedural",
       "retired_reason": "Generated package overlaps an existing package by 80% or more: INTJが距離を許す時に出る素を見せる境界線 vs INTJが仲良くなるほど出る素の反応 (/home/alr_k/projects/tiktok/out/が仲良くなるほど出る素の反応/post_01_INTJ/package.json)"
+    },
+    {
+      "key": "generated_f4456d3832f9",
+      "name": "と本音で話すための否定されない聞かれ方",
+      "theme": "コミュニケーション",
+      "blueprint": "communication_style",
+      "source": "procedural",
+      "retired_reason": "Generated package overlaps an existing package by 80% or more: INTJと本音で話すための否定されない聞かれ方 vs INTJと会話が噛み合う話し方 (/home/alr_k/projects/tiktok/out/と会話が噛み合う話し方/post_01_INTJ/package.json)"
     }
   ]
 }
