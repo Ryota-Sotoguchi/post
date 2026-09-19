@@ -447,6 +447,27 @@
       "publish_id": "p_inbox_url~v2.7687076812010211346",
       "posted_at": "2026-09-19T03:05:23+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "d5597e3e07/post_01_INTJ",
+      "title": "INTJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7687138608022112276",
+      "posted_at": "2026-09-19T07:05:20+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "d5597e3e07/post_02_INTP",
+      "title": "INTPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7687138577457547284",
+      "posted_at": "2026-09-19T07:05:31+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "d5597e3e07/post_03_ENTJ",
+      "title": "ENTJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7687138577457580052",
+      "posted_at": "2026-09-19T07:05:42+00:00",
+      "status": "SENT"
     }
   ]
 }
