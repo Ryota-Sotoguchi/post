@@ -1,10 +1,10 @@
 {
-  "next_seq": 8,
+  "next_seq": 11,
   "cursors": {
     "gallery": 2,
-    "ranking": 1,
-    "manual": 2,
-    "compat": 2
+    "ranking": 2,
+    "manual": 3,
+    "compat": 3
   },
   "extra_topics": {
     "gallery": [],

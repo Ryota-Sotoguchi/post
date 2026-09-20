@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T07:03:25+00:00",
+  "generated_at": "2026-09-20T11:06:48+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
     {
@@ -137,6 +137,57 @@
         "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/06.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/07.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/08.jpg"
+      ]
+    },
+    {
+      "key": "posts/00008-manual",
+      "theme": "manual",
+      "title": "ENTJの取扱説明書",
+      "description": "いつの間にか指揮を執る人、実はこう考えてる時がある\n\n当てはまったら保存して、その人に送ってみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #取扱説明書 #ENTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00008-manual/10.jpg"
+      ]
+    },
+    {
+      "key": "posts/00009-ranking",
+      "theme": "ranking",
+      "title": "実は一番寂しがりなタイプランキング",
+      "description": "「一見平気そう」な人ほど夜にこっそり穴が開く理由、最後まで見てみる？\n\n自分のタイプは何位だった？コメントで教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #ランキング #16タイプ #ISFJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00009-ranking/09.jpg"
+      ]
+    },
+    {
+      "key": "posts/00010-compat",
+      "theme": "compat",
+      "title": "ESTJと相性がいいタイプ【恋愛】",
+      "description": "「指示は通るけど、心は見えにくい」──それでも一緒にいる理由とは？\n\n相手のタイプと照らし合わせてみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #相性 #相性診断 #恋愛 #ESTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/08.jpg"
       ]
     },
     {
