@@ -1,0 +1,13 @@
+{
+  "next_seq": 3,
+  "cursors": {
+    "gallery": 1,
+    "ranking": 0,
+    "manual": 1,
+    "compat": 0
+  },
+  "extra_topics": {
+    "gallery": [],
+    "ranking": []
+  }
+}

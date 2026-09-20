@@ -1,7 +1,51 @@
 {
-  "generated_at": "2026-09-19T07:04:32+00:00",
+  "generated_at": "2026-09-20T02:02:01+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
+    {
+      "key": "posts/00001-gallery",
+      "theme": "gallery",
+      "title": "既読スルーされた時の16タイプ",
+      "description": "既読のあの瞬間、あなたはどんな顔をしてる？自分のタイプを探してみて。\n\nあなたのタイプはどうだった？コメントで教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #16タイプ #あるある",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/10.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/11.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/12.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/13.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/14.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/15.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/16.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/17.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00001-gallery/18.jpg"
+      ]
+    },
+    {
+      "key": "posts/00002-manual",
+      "theme": "manual",
+      "title": "INTJの取扱説明書",
+      "description": "静かに最適解を組み立ててる、その目に気づいた？\n\n当てはまったら保存して、その人に送ってみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #取扱説明書 #INTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00002-manual/10.jpg"
+      ]
+    },
     {
       "key": "6f4922ca38/post_01_INTJ",
       "theme": "がしんどい時に出るサイン",
