@@ -482,6 +482,13 @@
       "publish_id": "p_inbox_url~v2.7687201368846714901",
       "posted_at": "2026-09-19T11:09:15+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00001-gallery",
+      "title": "既読スルーされた時の16タイプ",
+      "publish_id": "p_inbox_url~v2.7687462099803359250",
+      "posted_at": "2026-09-20T03:59:34+00:00",
+      "status": "SENT"
     }
   ]
 }
