@@ -19,6 +19,7 @@ from PIL import Image, ImageFilter
 
 from mbti_tiktok_bot.design import effects as fx
 from mbti_tiktok_bot.design import text as T
+from mbti_tiktok_bot.design.backgrounds import texture
 from mbti_tiktok_bot.design.core import HEIGHT, WIDTH, Chip, Context, neon_partner, vivid
 from mbti_tiktok_bot.design.kit import blank, canvas, framed, glass, hollow, paste, shape_mask, subject, swipe_cue
 from mbti_tiktok_bot.visuals import _seed_choice
@@ -197,6 +198,11 @@ class Neon(Look):
             ((w * 0.06, h * 0.78), 840 * s, self.rgba("accent2", 120)),
             ((w * 0.62, h * 0.60), 380 * s, self.rgba("accent2", 60)),
         ])
+        # The texture goes over the glows and under the dot grid, so the grid
+        # still reads as the look's own structure rather than part of the art.
+        art = texture(self.ctx, self.name, self.c["ground"], self.c["accent"], 150)
+        if art is not None:
+            image.alpha_composite(art)
         draw = canvas(image, self.ctx)
         for gy in range(96, HEIGHT, 64):
             for gx in range(48, WIDTH, 64):
@@ -281,6 +287,11 @@ class Bubble(Look):
             ((w * 0.95, h * 0.55), 700 * s, self.rgba("pastel", 150)),
             ((w * 0.20, h * 0.95), 560 * s, self.rgba("pastel2", 120)),
         ])
+        # Kept airy: at full strength the clouds read as the subject rather
+        # than the paper, and the characters have to sit on top of them.
+        art = texture(self.ctx, self.name, fx.mix(self.c["accent"], "#ffffff", 0.45), "#ffffff", 100)
+        if art is not None:
+            image.alpha_composite(art)
         draw = canvas(image, self.ctx)
         for row, gy in enumerate(range(40, HEIGHT + 60, 88)):
             for gx in range(-40 + (row % 2) * 44, WIDTH + 60, 88):
@@ -378,7 +389,13 @@ class Editorial(Look):
         return self.rgba("ink", 230)
 
     def background(self) -> Image.Image:
-        return fx.grain(fx.solid(self.ctx.device, self.rgba("paper")), 0.045, seed=self.ctx.seed)
+        image = fx.solid(self.ctx.device, self.rgba("paper"))
+        # Paper stock: the fibres and the raking light, in the palette's own
+        # off-white, so the page has a surface instead of a flat fill.
+        art = texture(self.ctx, self.name, fx.mix(self.c["paper"], self.c["ink"], 0.16), self.c["paper"], 190)
+        if art is not None:
+            image.alpha_composite(art)
+        return fx.grain(image, 0.045, seed=self.ctx.seed)
 
     def eyebrow(self, draw, text, x, y, align="left", width=None, size=34) -> float:
         block = T.single(text, "label" if text.isascii() else "jp-medium", size, tracking_em=0.3 if text.isascii() else 0.14)
@@ -442,6 +459,11 @@ class Brutal(Look):
 
     def background(self) -> Image.Image:
         image = fx.solid(self.ctx.device, self.rgba("field"))
+        # Faint enough to be a printed underlay: the slide's own type and blocks
+        # have to stay the loudest thing on it.
+        art = texture(self.ctx, self.name, self.c["ink"], self.c["field"], 32)
+        if art is not None:
+            image.alpha_composite(art)
         draw = canvas(image, self.ctx)
         step = WIDTH / 6
         for i in range(1, 6):

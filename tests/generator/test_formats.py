@@ -10,9 +10,11 @@ from unittest.mock import patch
 
 from PIL import Image
 
-from mbti_tiktok_bot.catalog import MBTI_POST_ORDER
+from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS, MBTI_POST_ORDER
 from mbti_tiktok_bot.config import load_config
+from mbti_tiktok_bot.design import backgrounds
 from mbti_tiktok_bot.design import text as T
+from mbti_tiktok_bot.design.core import Context
 from mbti_tiktok_bot.design.engine import look_name, render_post
 from mbti_tiktok_bot.design.fonts import face
 from mbti_tiktok_bot.design.looks import LOOK_ORDER
@@ -188,6 +190,44 @@ class RenderTests(unittest.TestCase):
     def test_consecutive_posts_never_share_a_look(self) -> None:
         looks = [look_name(_small_post(seq)) for seq in range(1, 12)]
         self.assertTrue(all(a != b for a, b in zip(looks, looks[1:])))
+
+
+class BackgroundTextureTests(unittest.TestCase):
+    """The library is optional, chosen by seed, and never drawn from at runtime."""
+
+    def test_an_empty_library_leaves_every_look_drawing_itself(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = _config(Path(temp_dir))  # project_root has no assets/backgrounds
+            self.assertEqual(backgrounds.library(config.project_root, "neon"), [])
+            slides_dir = Path(temp_dir) / "slides"
+            render_post(_small_post(), config, slides_dir, look="neon")
+            self.assertEqual(len(list(slides_dir.glob("slide_*.png"))), 2)
+
+    def test_the_same_post_always_gets_the_same_texture(self) -> None:
+        config = load_config(Path.cwd())
+        files = backgrounds.library(config.project_root, "neon")
+        if not files:
+            self.skipTest("no texture library in this checkout")
+        ctx = Context(config=config, palette=GROUP_PALETTE_VARIANTS["分析家"][0], seed=12345, scale=1)
+        first = backgrounds.texture(ctx, "neon", "#000000", "#ffffff")
+        second = backgrounds.texture(ctx, "neon", "#000000", "#ffffff")
+        self.assertEqual(first.tobytes(), second.tobytes())
+        self.assertEqual(first.size, ctx.device)
+
+    def test_a_texture_is_recoloured_into_the_palette(self) -> None:
+        config = load_config(Path.cwd())
+        if not backgrounds.library(config.project_root, "brutal"):
+            self.skipTest("no texture library in this checkout")
+        ctx = Context(config=config, palette=GROUP_PALETTE_VARIANTS["分析家"][0], seed=7, scale=1)
+        recoloured = backgrounds.texture(ctx, "brutal", "#102030", "#e0f0ff").convert("RGB")
+        # Every pixel sits on the line between the two colours: blue is never
+        # below the dark end or above the light end, whatever the file held.
+        blues = recoloured.getchannel("B").getextrema()
+        self.assertGreaterEqual(blues[0], 0x30 - 2)
+        self.assertLessEqual(blues[1], 0xFF)
+        reds = recoloured.getchannel("R").getextrema()
+        self.assertGreaterEqual(reds[0], 0x10 - 2)
+        self.assertLessEqual(reds[1], 0xE0 + 2)
 
 
 class HeadlineBreakTests(unittest.TestCase):

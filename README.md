@@ -365,6 +365,16 @@ Zen Kaku には `palt` が無いので、約物（「」、。）の半角詰め
 
 キャラ画像は16点すべて切り抜きに揃えてある（白背景だった4点は `scripts/cutout-white-background.py` で一度だけ処理）。
 
+背景は `assets/backgrounds/<ルック>/NN.jpg`（各6枚）。**画像生成APIは一度だけ叩いて素材にしてあり、毎日の生成では呼ばない。**
+素材は「色」ではなく「構造」（光・粒子・奥行き・形）として使う。各ルックが輝度を自分のパレットに
+置き換えるので、24パレットが色を決める仕組みは崩れない。投稿ごとにシードで1枚選ぶ。
+フォルダを空にすれば、素材なしの元の描画に戻る。
+
+```bash
+.venv-linux/bin/python scripts/generate-backgrounds.py --count 1 --dry-run   # プロンプトだけ表示
+.venv-linux/bin/python scripts/generate-backgrounds.py --look neon --count 6 # 足す（既存は残る）
+```
+
 描画は1投稿10〜20秒。同じ投稿は何度描いても同じ画像になる（粒子ノイズもシード固定）。
 
 ### 旧形式
