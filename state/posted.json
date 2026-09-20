@@ -489,6 +489,27 @@
       "publish_id": "p_inbox_url~v2.7687462099803359250",
       "posted_at": "2026-09-20T03:59:34+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00002-manual",
+      "title": "INTJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7687542808072243220",
+      "posted_at": "2026-09-20T09:14:14+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00003-ranking",
+      "title": "怒らせると一番怖いタイプランキング",
+      "publish_id": "p_inbox_url~v2.7687542715764164629",
+      "posted_at": "2026-09-20T09:14:25+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00004-compat",
+      "title": "ISTJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7687542715764230165",
+      "posted_at": "2026-09-20T09:14:36+00:00",
+      "status": "SENT"
     }
   ]
 }
