@@ -524,6 +524,13 @@
       "publish_id": "p_inbox_url~v2.7687571823857813524",
       "posted_at": "2026-09-20T11:09:50+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00007-compat",
+      "title": "ISFJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7687880570852296711",
+      "posted_at": "2026-09-21T07:05:16+00:00",
+      "status": "SENT"
     }
   ]
 }
