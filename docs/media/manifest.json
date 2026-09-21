@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-09-20T11:06:48+00:00",
+  "generated_at": "2026-09-21T02:58:43+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
     {
@@ -188,6 +188,50 @@
         "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/06.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/07.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00010-compat/08.jpg"
+      ]
+    },
+    {
+      "key": "posts/00011-gallery",
+      "theme": "gallery",
+      "title": "怒りが限界を超えた時の16タイプ",
+      "description": "怒りの瞬間、あなたは黙る派？暴走派？自分の“燃え方”を探してみて\n\nあなたのタイプはどうだった？コメントで教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #16タイプ #あるある",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/10.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/11.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/12.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/13.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/14.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/15.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/16.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/17.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00011-gallery/18.jpg"
+      ]
+    },
+    {
+      "key": "posts/00012-manual",
+      "theme": "manual",
+      "title": "ENTPの取扱説明書",
+      "description": "話し始めたら止まらない相手、扱い方を知ると楽になるよ\n\n当てはまったら保存して、その人に送ってみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #取扱説明書 #ENTP",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00012-manual/10.jpg"
       ]
     },
     {

@@ -1,9 +1,9 @@
 {
-  "next_seq": 11,
+  "next_seq": 13,
   "cursors": {
-    "gallery": 2,
+    "gallery": 3,
     "ranking": 2,
-    "manual": 3,
+    "manual": 4,
     "compat": 3
   },
   "extra_topics": {
