@@ -531,6 +531,27 @@
       "publish_id": "p_inbox_url~v2.7687880570852296711",
       "posted_at": "2026-09-21T07:05:16+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00008-manual",
+      "title": "ENTJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7687923289192908818",
+      "posted_at": "2026-09-21T09:49:47+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00009-ranking",
+      "title": "実は一番寂しがりなタイプランキング",
+      "publish_id": "p_inbox_url~v2.7687923460848683015",
+      "posted_at": "2026-09-21T09:49:57+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00010-compat",
+      "title": "ESTJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7687923602271815688",
+      "posted_at": "2026-09-21T09:50:08+00:00",
+      "status": "SENT"
     }
   ]
 }
