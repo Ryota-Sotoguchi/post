@@ -573,6 +573,41 @@
       "publish_id": "p_inbox_url~v2.7688283910928615445",
       "posted_at": "2026-09-22T09:09:21+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00014-compat",
+      "title": "ESFJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7688364860947007508",
+      "posted_at": "2026-09-22T14:27:21+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00015-manual",
+      "title": "INFJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7688365839640234004",
+      "posted_at": "2026-09-22T14:27:32+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00016-gallery",
+      "title": "寝る前の頭の中の16タイプ",
+      "publish_id": "p_inbox_url~v2.7688365839640283156",
+      "posted_at": "2026-09-22T14:27:43+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00017-compat",
+      "title": "ISTPと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7688365842278598677",
+      "posted_at": "2026-09-22T14:27:54+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00018-manual",
+      "title": "INFPの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7688365839640365076",
+      "posted_at": "2026-09-22T14:28:05+00:00",
+      "status": "SENT"
     }
   ]
 }
