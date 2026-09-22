@@ -7,7 +7,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tiktok_poster.catalog import load_manifest, manifest_path, scan, write_manifest
+from tiktok_poster.catalog import load_manifest, manifest_path, scan_fresh
 from tiktok_poster.cli import _queue, _run_post, _run_sync
 from tiktok_poster.config import Config
 from tiktok_poster.media import post_publish_dir
@@ -41,16 +41,27 @@ def _synced(config: Config) -> None:
         assert _run_sync(_sync_args(dry_run=True)) == 0
 
 
-def test_sync_publishes_every_carousel_and_records_it(config: Config) -> None:
+def test_sync_publishes_the_written_posts_and_records_them(config: Config) -> None:
+    _synced(config)
+
+    uploads = {upload.key: upload for upload in load_manifest(manifest_path(config.publish_dir))}
+    written = [post for post in scan_fresh(config.source_dir) if not post.filler]
+    for post in written:
+        assert post.key in uploads
+        assert post_publish_dir(config, post).exists()
+        assert len(uploads[post.key].images) == len(post.slides)
+        assert all(url.startswith(config.pages_base_url) for url in uploads[post.key].images)
+
+
+def test_sync_publishes_only_the_filler_the_queue_will_reach(config: Config) -> None:
+    # Filler is hundreds of posts that may never be needed; publishing them all
+    # would put a quarter of a gigabyte of JPEG into the repository for nothing.
     _synced(config)
 
     uploads = load_manifest(manifest_path(config.publish_dir))
-    assert len(uploads) == len(scan(config.source_dir))
-    for upload, post in zip(uploads, scan(config.source_dir)):
-        assert upload.key == post.key
-        assert post_publish_dir(config, post).exists()
-        assert len(upload.images) == len(post.slides)
-        assert all(url.startswith(config.pages_base_url) for url in upload.images)
+    filler = [upload.key for upload in uploads if upload.filler]
+    assert filler == ["posts/L0001-manual"]  # publish_filler=1 in the fixture
+    assert not (config.publish_dir / "posts" / "L0002-manual").exists()
 
 
 def test_post_runs_without_the_source_images(config: Config) -> None:
@@ -77,9 +88,9 @@ def test_post_sends_a_day_worth_and_records_each(config: Config) -> None:
     ), patch("tiktok_poster.cli.tiktok.send_to_drafts", side_effect=["a", "b", "c", "d"]) as send_mock:
         assert _run_post(_post_args()) == 0
 
-    # The fixture holds four carousels, so stock caps the day's batch.
-    assert send_mock.call_count == 4
-    assert len(load_state(config.state_path).records) == 4
+    # The fixture publishes two written posts and one piece of filler.
+    assert send_mock.call_count == 3
+    assert len(load_state(config.state_path).records) == 3
 
 
 def test_post_does_not_resend_what_is_already_recorded(config: Config) -> None:
@@ -91,10 +102,10 @@ def test_post_does_not_resend_what_is_already_recorded(config: Config) -> None:
 
     with patch("tiktok_poster.cli.load_config", return_value=config), patch(
         "tiktok_poster.cli.pages.wait_until_live"
-    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", side_effect=["a", "b", "c"]) as send_mock:
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", side_effect=["a", "b"]) as send_mock:
         _run_post(_post_args())
 
-    assert send_mock.call_count == 3
+    assert send_mock.call_count == 2
 
 
 def test_post_titles_and_hashtags_reach_the_api(config: Config) -> None:
@@ -107,8 +118,8 @@ def test_post_titles_and_hashtags_reach_the_api(config: Config) -> None:
         _run_post(_post_args(count=1))
 
     _, title, description, urls = send_mock.call_args.args
-    assert title == "INTJがしんどい時に出るサイン"
-    assert description == "#恋愛 #MBTI #INTJ"
+    assert title == "既読スルーされた時の16タイプ"
+    assert description == "既読スルーされた時の16タイプのフック\n\n#MBTI #gallery"
     assert len(urls) == 7
 
 
@@ -206,11 +217,11 @@ def test_a_full_draft_inbox_stops_the_batch(config: Config) -> None:
         "tiktok_poster.cli.pages.wait_until_live"
     ), patch(
         "tiktok_poster.cli.tiktok.send_to_drafts",
-        side_effect=["ok-1", DraftBacklogFull("full"), "never", "never"],
+        side_effect=["ok-1", DraftBacklogFull("full"), "never"],
     ) as send_mock:
         _run_post(_post_args())
 
-    # Stopped at the refusal rather than trying the remaining two.
+    # Stopped at the refusal rather than trying what was behind it.
     assert send_mock.call_count == 2
     records = load_state(config.state_path).records
     assert len(records) == 1
@@ -268,51 +279,19 @@ def _sent(config: Config, *keys: str) -> None:
     save_state(config.state_path, state)
 
 
-def test_post_waits_for_a_slot_that_is_not_published_instead_of_moving_on(
-    config: Config, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """The failure this guards against: a theme half sent, then abandoned.
-
-    Only the first slot of the started theme is published, so the second has
-    nowhere to come from. Nothing else may go out ahead of it, not the other
-    theme and not a later type.
-    """
+def test_filler_goes_out_only_once_the_written_posts_are_gone(config: Config) -> None:
+    """Ten posts are written a day and ten are sent, so filler is for the days
+    that did not happen: the PC was off, or the API was down."""
     _synced(config)
     _authorize(config)
-    uploads = load_manifest(manifest_path(config.publish_dir))
-    started = uploads[0].key.split("/")[0]
-    _sent(config, uploads[0].key)
-    # Drop the rest of the started theme back out of the manifest, as a sync
-    # taken while the theme was still being drawn would have left it.
-    write_manifest(
-        manifest_path(config.publish_dir),
-        [upload for upload in uploads if not upload.key.startswith(f"{started}/")] + [uploads[0]],
-        config.pages_base_url,
-    )
+    _sent(config, "posts/00001-gallery", "posts/00002-manual")
 
     with patch("tiktok_poster.cli.load_config", return_value=config), patch(
         "tiktok_poster.cli.pages.wait_until_live"
-    ), patch("tiktok_poster.cli.tiktok.send_to_drafts") as send_mock:
-        assert _run_post(_post_args()) == 0
+    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", return_value="ok") as send_mock:
+        assert _run_post(_post_args(count=1)) == 0
 
-    send_mock.assert_not_called()
-    assert "Waiting for post_02" in capsys.readouterr().out
-
-
-def test_the_rest_of_a_theme_does_not_cut_into_one_already_going_out(config: Config) -> None:
-    """A theme completed by a later sync waits its turn behind a started theme."""
-    _synced(config)
-    uploads = load_manifest(manifest_path(config.publish_dir))
-    first, second = uploads[0].key.split("/")[0], uploads[-1].key.split("/")[0]
-    # The second theme in the manifest is the one that started, so the first
-    # must not slip in front of it even though it sorts earlier.
-    _sent(config, f"{second}/post_01_INTJ")
-
-    with patch("tiktok_poster.cli.load_config", return_value=config):
-        queue, waiting = _queue(config)
-
-    assert waiting is None
-    assert [upload.key.split("/")[0] for upload in queue] == [second, first, first]
+    assert send_mock.call_args.args[1] == "INFPが本命だけに見せる距離の縮め方"
 
 
 def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None:
@@ -335,36 +314,3 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     assert str(state_dir / "format_state.json") in pushed
     # Actions writes this one; sync committing a stale local copy would race it.
     assert str(config.state_path) not in pushed
-
-
-def test_sync_publishes_new_format_posts_under_their_own_path_and_sends_them_first(config: Config) -> None:
-    import json
-
-    from PIL import Image
-
-    folder = config.source_dir / "_posts" / "00001-ranking"
-    folder.mkdir(parents=True)
-    for index in (1, 2, 3):
-        Image.new("RGB", (1080, 1920), (10, 20, 30)).save(folder / f"slide_{index:02d}.png")
-    (folder / "post.json").write_text(
-        json.dumps({"key": "00001-ranking", "format": "ranking", "title": "怒らせると一番怖いタイプランキング",
-                    "description": "1位は誰？\n\n#MBTI"}, ensure_ascii=False),
-        encoding="utf-8",
-    )
-    _synced(config)
-
-    uploads = load_manifest(manifest_path(config.publish_dir))
-    fresh = next(upload for upload in uploads if upload.key == "posts/00001-ranking")
-    assert fresh.images == tuple(f"{config.pages_base_url}/posts/00001-ranking/{n:02d}.jpg" for n in (1, 2, 3))
-    assert (config.publish_dir / "posts" / "00001-ranking" / "01.jpg").exists()
-
-    _authorize(config)
-    with patch("tiktok_poster.cli.load_config", return_value=config), patch(
-        "tiktok_poster.cli.pages.wait_until_live"
-    ), patch("tiktok_poster.cli.tiktok.send_to_drafts", return_value="id-1") as send_mock:
-        assert _run_post(_post_args(count=1)) == 0
-
-    title, description, images = send_mock.call_args.args[1:4]
-    assert title == "怒らせると一番怖いタイプランキング"
-    assert description == "1位は誰？\n\n#MBTI"
-    assert len(images) == 3

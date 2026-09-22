@@ -4,7 +4,11 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from tiktok_poster.catalog import THEME_MIN_POSTS, THEME_SIZE
+
+# Filler is the redrawn back catalogue: hundreds of posts that may never be
+# needed. Publishing all of them would put a quarter of a gigabyte of JPEG into
+# the repository for nothing, so only the next few days' worth go up at a time.
+PUBLISH_FILLER = 30
 
 
 def _read_env_file(path: Path) -> dict[str, str]:
@@ -37,8 +41,7 @@ class Config:
     pages_base_url: str
     state_path: Path
     posts_per_day: int
-    theme_size: int
-    theme_min_posts: int
+    publish_filler: int
     jpeg_quality: int
     keep_published_posts: int
     output_dir: Path
@@ -74,8 +77,7 @@ def load_config(project_root: Path | None = None) -> Config:
         # One theme covers the 16 MBTI types, but it is drawn over several days,
         # so half of it is enough to start publishing; the poster waits at the
         # first slot that is missing rather than moving on to another theme.
-        theme_size=int(settings.get("THEME_SIZE", str(THEME_SIZE))),
-        theme_min_posts=int(settings.get("THEME_MIN_POSTS", str(THEME_MIN_POSTS))),
+        publish_filler=int(settings.get("PUBLISH_FILLER", str(PUBLISH_FILLER))),
         jpeg_quality=int(settings.get("JPEG_QUALITY", "90")),
         # Published images stay reachable only long enough for TikTok to fetch
         # them; keeping every carousel would grow the repo without bound.

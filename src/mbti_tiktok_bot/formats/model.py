@@ -77,11 +77,19 @@ class Post:
     hashtags: tuple[str, ...] = ()
     cards: list[Card] = field(default_factory=list)
     source: str = "llm"  # "llm" or "template", for spotting a run that fell back
+    # Stock rather than the day's work: the old themed carousels, redrawn in the
+    # current design. It goes out only when nothing freshly written is waiting.
+    filler: bool = False
 
     @property
     def key(self) -> str:
-        """An ASCII, sortable id; it becomes a folder name and part of a public URL."""
-        return f"{self.seq:05d}-{self.format}"
+        """An ASCII, sortable id; it becomes a folder name and part of a public URL.
+
+        Filler is numbered in its own L series, so converting the back catalogue
+        never collides with the daily numbers and the two stay tellable apart in
+        a folder listing.
+        """
+        return f"L{self.seq:04d}-{self.format}" if self.filler else f"{self.seq:05d}-{self.format}"
 
     @property
     def description(self) -> str:
@@ -106,6 +114,7 @@ class Post:
             "angle": self.angle,
             "hashtags": list(self.hashtags),
             "source": self.source,
+            "filler": self.filler,
             "cards": [card.to_dict() for card in self.cards],
         }
 
@@ -123,4 +132,5 @@ class Post:
             hashtags=tuple(data.get("hashtags", [])),
             cards=[Card.from_dict(card) for card in data.get("cards", [])],
             source=data.get("source", "llm"),
+            filler=bool(data.get("filler", False)),
         )

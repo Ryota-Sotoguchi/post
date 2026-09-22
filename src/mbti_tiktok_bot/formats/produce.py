@@ -101,19 +101,28 @@ def _export(config: AppConfig, post: Post, slides: list[Path]) -> Path:
         "post_date": post.post_date,
         "title": post.title,
         "description": post.description,
+        "filler": post.filler,
     }
     (destination / META).write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     return destination
 
 
-def make_post(config: AppConfig, post: Post) -> Path:
-    """Render one written post and hand it to the poster. Returns its out/ folder."""
+def make_post(config: AppConfig, post: Post, keep_source: bool = True) -> Path:
+    """Render one written post and hand it to the poster. Returns its out/ folder.
+
+    keep_source=False drops the out/ copy of the images once the handoff has
+    them. Converted back-catalogue posts may sit for weeks before they are
+    needed, and two copies of a few thousand slides is gigabytes; post.json
+    stays, so any of them can be drawn again.
+    """
     folder = posts_root(config) / post.key
     (folder / META).unlink(missing_ok=True)
     render_post(post, config, folder / "slides")
     slides = sorted((folder / "slides").glob("slide_*.png"))
     (folder / "caption.txt").write_text(post.description + "\n", encoding="utf-8")
     _export(config, post, slides)
+    if not keep_source:
+        shutil.rmtree(folder / "slides", ignore_errors=True)
     (folder / META).write_text(writer.dumps(post), encoding="utf-8")
     return folder
 
