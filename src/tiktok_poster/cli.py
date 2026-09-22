@@ -103,6 +103,9 @@ def _run_sync(args: argparse.Namespace) -> int:
             config.project_root / "state" / "series_state.json",
             config.project_root / "state" / "phone_export_daemon_state.json",
             config.project_root / "state" / "format_state.json",
+            # Which L number each converted carousel was given. Losing it would
+            # renumber the filler series and orphan what has already been sent.
+            config.project_root / "state" / "legacy_converted.json",
         )
         if path.exists()
     ]

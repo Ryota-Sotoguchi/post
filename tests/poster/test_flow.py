@@ -302,6 +302,7 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     (state_dir / "series_state.json").write_text('{"next_post_index": 244}', encoding="utf-8")
     (state_dir / "phone_export_daemon_state.json").write_text('{"completed_slots": []}', encoding="utf-8")
     (state_dir / "format_state.json").write_text('{"next_seq": 12}', encoding="utf-8")
+    (state_dir / "legacy_converted.json").write_text('{"theme/post_01_INTJ": 1}', encoding="utf-8")
 
     with patch("tiktok_poster.cli.load_config", return_value=config), \
          patch("tiktok_poster.cli.pages.push", return_value=True) as push:
@@ -312,5 +313,6 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     assert str(state_dir / "series_state.json") in pushed
     assert str(state_dir / "phone_export_daemon_state.json") in pushed
     assert str(state_dir / "format_state.json") in pushed
+    assert str(state_dir / "legacy_converted.json") in pushed
     # Actions writes this one; sync committing a stale local copy would race it.
     assert str(config.state_path) not in pushed
