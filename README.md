@@ -229,6 +229,9 @@ delivery/phone/_posts/<NNNNN-形式>/slide_NN.png, post.json（タイトルと�
 docs/media/posts/<NNNNN-形式>/NN.jpg
 ```
 
+描き直した在庫（穴埋め）は `L0001-manual` のようなL系列で、**画像は受け渡しフォルダ側にだけ置く**。
+何週間も出番が来ない可能性があるものを2重に持つと数GBになるため。`post.json` は残るので描き直せる。
+
 旧形式:
 
 ```
