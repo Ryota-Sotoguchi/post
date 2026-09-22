@@ -406,6 +406,22 @@ def _run_cleanup(args: argparse.Namespace) -> int:
     state = load_state(config.state_path)
     themes = retention.expired_themes(config.source_dir, config.output_dir, state, keep_days)
     posts = retention.expired_posts(config.source_dir, config.output_dir, state, keep_days)
+
+    if args.superseded:
+        # The old drawings of everything that was redrawn. They are not sent any
+        # more, so nothing waits on them; only the images go.
+        old = retention.superseded_posts(
+            config.source_dir, config.output_dir, retention.converted_index(config.project_root)
+        )
+        if not old:
+            print("No old drawings left to remove.")
+            return 0
+        total = sum(post.bytes for post in old)
+        print(f"{len(old)} redrawn post(s) still have their old images ({total / 1e9:.2f}GB).")
+        freed = retention.purge_superseded(config.source_dir, config.output_dir, old, dry_run=args.dry_run)
+        print(f"{'Would free' if args.dry_run else 'Freed'} {freed / 1e9:.2f}GB. The copy is untouched.")
+        return 0
+
     if not themes and not posts:
         print(f"Nothing to clean up: nothing was sent more than {keep_days} days ago.")
         return 0
@@ -556,6 +572,11 @@ def _build_parser() -> argparse.ArgumentParser:
     cleanup = sub.add_parser("cleanup", help="Drop local slide images for themes sent long ago")
     cleanup.add_argument("--days", type=int, default=None, help="Keep window in days (default KEEP_LOCAL_DAYS)")
     cleanup.add_argument("--dry-run", action="store_true", help="Report what would be removed")
+    cleanup.add_argument(
+        "--superseded",
+        action="store_true",
+        help="Instead, remove the old drawings of the carousels that were redrawn",
+    )
 
     catch_up = sub.add_parser("catch-up", help="If today's drafts have not all gone out, start the posting workflow")
     catch_up.add_argument("--dry-run", action="store_true", help="Report the decision without acting on it")

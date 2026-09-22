@@ -3,7 +3,16 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tiktok_poster.retention import expired_posts, expired_themes, purge, purge_posts, theme_slug
+from tiktok_poster.retention import (
+    converted_index,
+    expired_posts,
+    expired_themes,
+    purge,
+    purge_posts,
+    purge_superseded,
+    superseded_posts,
+    theme_slug,
+)
 from tiktok_poster.state import State
 
 NOW = datetime(2026, 12, 1, tzinfo=timezone.utc)
@@ -118,3 +127,35 @@ def test_a_new_format_post_expires_on_its_own_and_keeps_its_post_json(tmp_path: 
     assert (source / "_posts" / "00002-manual").exists()
     # Already purged: nothing left to report next time.
     assert expired_posts(source, output, state, keep_days=60, now=NOW) == []
+
+
+def test_the_old_drawing_of_a_redrawn_post_is_dead_weight(tmp_path: Path) -> None:
+    # A redrawn post goes out in the current design, so the images the old
+    # renderer left will never be sent - but the copy has to survive.
+    source, output = _dirs(tmp_path)
+    _theme(source, "古いネタ", 2)
+    _theme(output, "古いネタ", 2, with_package=True)
+    converted = {"古いネタ/post_01_INTJ": 1, "古いネタ/post_02_INTJ": 2}
+
+    posts = superseded_posts(source, output, converted)
+    assert [(post.theme, post.post) for post in posts] == [
+        ("古いネタ", "post_01_INTJ"), ("古いネタ", "post_02_INTJ"),
+    ]
+    assert purge_superseded(source, output, posts) == 400
+
+    assert not (source / "古いネタ").exists()
+    assert not (output / "古いネタ" / "post_01_INTJ" / "slides").exists()
+    assert (output / "古いネタ" / "post_01_INTJ" / "package.json").exists()
+    # Nothing left to report on a second run.
+    assert superseded_posts(source, output, converted) == []
+
+
+def test_a_post_that_was_never_redrawn_is_left_alone(tmp_path: Path) -> None:
+    source, output = _dirs(tmp_path)
+    _theme(source, "まだのネタ", 1)
+
+    assert superseded_posts(source, output, {}) == []
+
+
+def test_a_missing_conversion_index_reads_as_nothing_converted(tmp_path: Path) -> None:
+    assert converted_index(tmp_path) == {}

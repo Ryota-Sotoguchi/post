@@ -217,6 +217,13 @@ Actions 側でコミットされた state に対して判定されていて、PC
 .venv-linux/bin/python -m tiktok_poster cleanup --dry-run --days 0 # 送信済みテーマ全部なら
 ```
 
+描き直した223本ぶんの**旧レイアウトの画像は5.1GB**残っている。もう送らないので消せる（台本は残る）:
+
+```bash
+.venv-linux/bin/python -m tiktok_poster cleanup --superseded --dry-run
+.venv-linux/bin/python -m tiktok_poster cleanup --superseded
+```
+
 ## 出力
 
 ```

@@ -21,6 +21,7 @@ generator counts a date's posts by the post.json it leaves there.
 from __future__ import annotations
 
 import hashlib
+import json
 import re
 import shutil
 from dataclasses import dataclass
@@ -162,4 +163,59 @@ def purge_posts(source_dir: Path, output_dir: Path, posts: list[ExpiredPost], dr
                 freed += _size(path)
                 if not dry_run:
                     shutil.rmtree(path)
+    return freed
+
+
+CONVERTED_INDEX = "legacy_converted.json"
+
+
+def converted_index(project_root: Path) -> dict[str, int]:
+    """Which themed packages were redrawn, from the generator's own index."""
+    try:
+        data = json.loads((project_root / "state" / CONVERTED_INDEX).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {str(key): int(value) for key, value in data.items()}
+
+
+@dataclass(frozen=True, slots=True)
+class SupersededPost:
+    theme: str
+    post: str
+    bytes: int
+
+
+def superseded_posts(source_dir: Path, output_dir: Path, converted: dict[str, int]) -> list[SupersededPost]:
+    """Old drawings of posts that have been redrawn, and are therefore dead.
+
+    A converted post goes out from the handoff folder in the current design, so
+    the images the old renderer left behind will never be sent. The copy stays:
+    only the images go, and post.json in the L-series folder can draw them again.
+    """
+    found: list[SupersededPost] = []
+    for name in sorted(converted):
+        theme, _, post = name.partition("/")
+        if not post:
+            continue
+        paths = [source_dir / theme / post, output_dir / theme / post / "slides"]
+        total = sum(_size(path) for path in paths if path.is_dir())
+        if total:
+            found.append(SupersededPost(theme, post, total))
+    return found
+
+
+def purge_superseded(source_dir: Path, output_dir: Path, posts: list[SupersededPost], dry_run: bool = False) -> int:
+    """Remove the old drawings. Returns the bytes freed."""
+    freed = 0
+    for post in posts:
+        for path in (source_dir / post.theme / post.post, output_dir / post.theme / post.post / "slides"):
+            if path.is_dir():
+                freed += _size(path)
+                if not dry_run:
+                    shutil.rmtree(path)
+        # The theme folder in the handoff exists only for its posts.
+        parent = source_dir / post.theme
+        if parent.is_dir() and not any(parent.iterdir()):
+            if not dry_run:
+                parent.rmdir()
     return freed
