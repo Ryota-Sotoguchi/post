@@ -18,7 +18,7 @@ from mbti_tiktok_bot.design.core import Context
 from mbti_tiktok_bot.design.engine import look_name, render_post
 from mbti_tiktok_bot.design.fonts import face
 from mbti_tiktok_bot.design.looks import LOOK_ORDER
-from mbti_tiktok_bot.formats import planner, produce, writer
+from mbti_tiktok_bot.formats import legacy, planner, produce, writer
 from mbti_tiktok_bot.formats.model import Card, Item, Post
 
 TARGET = date(2026, 9, 20)
@@ -162,6 +162,70 @@ class WriterFallbackTests(unittest.TestCase):
         post = writer.compat(self.config, 4, "INFJ", "恋愛", TARGET)
         again = Post.from_dict(json.loads(writer.dumps(post)))
         self.assertEqual(again.to_dict(), post.to_dict())
+
+
+LEGACY = {
+    "post_date": "2026-07-05",
+    "mbti_type": "INTJ",
+    "title": "INTJが本気で心を許したサイン",
+    "theme": "人間関係",
+    "hook": "急に予定を崩したら要チェック。",
+    "hashtags": ["#MBTI", "#INTJ"],
+    "scenes": [
+        {"title": "INTJが計画を外す時", "body": "先を読む / 感情より設計 / 必要な人には一途。説明より本音が先に出る。"},
+        {"title": "静かな一途さが出る", "body": "感情表現は 大きくなくても、優先順位が変わる。"},
+        {"title": "任せる範囲が広がる", "body": "詰めずに確認する／急かさない／まず理解する。距離が開きにくい。"},
+    ],
+}
+
+
+class LegacyConversionTests(unittest.TestCase):
+    """The back catalogue, redrawn: same copy, current design."""
+
+    def test_a_themed_post_becomes_a_cover_sections_and_a_closer(self) -> None:
+        post = legacy.convert(LEGACY, 7)
+
+        self.assertEqual(post.key, "L0007-manual")
+        self.assertTrue(post.filler)
+        self.assertEqual(post.source, "legacy")
+        self.assertEqual([card.kind for card in post.cards], ["cover", "section", "section", "section", "closer"])
+        self.assertEqual(post.cards[0].title, "INTJが本気で心を許したサイン")
+        # The hook was written for every post and never drawn; now it is the cover.
+        self.assertEqual(post.cards[0].body, "急に予定を崩したら要チェック。")
+        self.assertEqual(post.hashtags, ("#MBTI", "#INTJ"))
+
+    def test_the_filler_series_cannot_collide_with_the_daily_numbers(self) -> None:
+        self.assertNotEqual(legacy.convert(LEGACY, 7).key, _small_post(7).key)
+
+    def test_a_list_pasted_into_prose_becomes_chips(self) -> None:
+        post = legacy.convert(LEGACY, 1)
+        first, second, third = post.cards[1:4]
+
+        self.assertEqual(first.chips, ("先を読む", "感情より設計", "必要な人には一途"))
+        self.assertEqual(first.body, "説明より本音が先に出る。")
+        # A fullwidth slash was used for the same thing.
+        self.assertEqual(third.chips, ("詰めずに確認する", "急かさない", "まず理解する"))
+        self.assertEqual(third.body, "距離が開きにくい。")
+        # A card with no list of its own falls back to the type's traits.
+        self.assertEqual(second.chips, ())
+        # And a stray space between two Japanese characters is a typo.
+        self.assertEqual(second.body, "感情表現は大きくなくても、優先順位が変わる。")
+
+    def test_prose_with_a_nakaguro_is_left_alone(self) -> None:
+        # 世話焼き・励ます人 is one phrase, not a list.
+        self.assertEqual(legacy.split_chips("普段は世話焼き・励ます人が反応薄め。続く文。"),
+                         ((), "普段は世話焼き・励ます人が反応薄め。続く文。"))
+
+    def test_a_list_with_nothing_after_it_stays_prose(self) -> None:
+        # 即レスを求めると閉じやすい is the predicate; chipping it would lose it.
+        chips, body = legacy.split_chips("感情を決めつける／正論で押す／即レスを求めると閉じやすい。")
+        self.assertEqual(chips, ())
+        self.assertEqual(body, "感情を決めつける／正論で押す／即レスを求めると閉じやすい。")
+
+    def test_a_list_left_in_prose_gets_the_separator_the_sentence_wanted(self) -> None:
+        post = legacy.convert({**LEGACY, "scenes": [
+            {"title": "見出し", "body": "感情を決めつける／正論で押す／即レスを求めると閉じやすい。"}]}, 1)
+        self.assertEqual(post.cards[1].body, "感情を決めつける、正論で押す、即レスを求めると閉じやすい。")
 
 
 class RenderTests(unittest.TestCase):

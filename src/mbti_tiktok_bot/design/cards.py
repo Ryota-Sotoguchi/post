@@ -30,9 +30,14 @@ def _eyebrow_text(text: str) -> str:
     return text.replace("【", "・").replace("】", "")
 
 
+# What a counter or a swipe cue takes on the right of the top row.
+RIGHT_ROOM = 230
+
+
 def _top_row(look: Look, draw, left: str, right: str) -> float:
     """The eyebrow on the left and a counter or swipe cue on the right. Returns its height."""
-    height = look.eyebrow(draw, _eyebrow_text(left), SAFE_LEFT, SAFE_TOP)
+    room = SAFE_WIDTH - (RIGHT_ROOM if right else 0)
+    height = look.eyebrow(draw, _eyebrow_text(left), SAFE_LEFT, SAFE_TOP, max_width=room)
     if right == "SWIPE":
         look.cue(draw, SAFE_RIGHT, SAFE_TOP + max(height - 26, 0) / 2)
     elif right:

@@ -7,8 +7,7 @@ the same idea for the two local copies.
 
 The unit is the theme, not the post. A theme is only touched once every post of
 it has been sent and the last send is older than the keep window, so nothing
-still queued can lose its images, and ready_themes never sees a theme shrink
-below its publishing threshold.
+still queued can lose its images.
 
 Under out/ only the slides go. package.json, the caption and the script stay:
 the generator's overlap guard compares new copy against every package.json it

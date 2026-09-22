@@ -27,6 +27,22 @@ from mbti_tiktok_bot.visuals import _seed_choice
 RGBA = tuple[int, int, int, int]
 
 
+def fit_label(text: str, role: str, size: int, max_width: float | None, tracking_em: float,
+              minimum: int = 22) -> int:
+    """The largest size at which one line of label text fits.
+
+    A post title is an eyebrow on its inner slides, and the catalogue has some
+    long ones: INTJが本命前で見せる距離を詰めたい時の葛藤 ran straight through the
+    01 / 05 counter on the other side of the row.
+    """
+    if max_width is None:
+        return size
+    for candidate in range(size, minimum - 1, -2):
+        if T.single(text, role, candidate, tracking_em=tracking_em).width <= max_width:
+            return candidate
+    return minimum
+
+
 class Look:
     name = "base"
     dark = False
@@ -89,10 +105,15 @@ class Look:
         T.draw(draw, block, x, y, self.sub, align=align, box_width=width)
 
     def eyebrow(self, draw, text: str, x: float, y: float, align: str = "left", width: float | None = None,
-                size: int = 36) -> float:
-        block = T.single(text, "label" if text.isascii() else "jp-bold", size, tracking_em=0.18 if text.isascii() else 0.06)
+                size: int = 36, max_width: float | None = None) -> float:
+        role, tracking = self._label_face(text)
+        size = fit_label(text, role, size, max_width, tracking)
+        block = T.single(text, role, size, tracking_em=tracking)
         T.draw(draw, block, x, y, self.rgba("accent"), align=align, box_width=width)
         return T.ink_height(block)
+
+    def _label_face(self, text: str) -> tuple[str, float]:
+        return ("label", 0.18) if text.isascii() else ("jp-bold", 0.06)
 
     def chip(self, label: str, strong: bool = False, size: int = 30) -> Chip:
         raise NotImplementedError
@@ -307,11 +328,13 @@ class Bubble(Look):
                stroke=max(block.size // 9, 5), stroke_fill=(255, 255, 255, 255),
                shadow=(0, block.size * 0.08, self.rgba("accent", 170)))
 
-    def eyebrow(self, draw, text, x, y, align="left", width=None, size=36) -> float:
-        chip = self.chip(text, strong=True, size=size - 4)
+    def eyebrow(self, draw, text, x, y, align="left", width=None, size=36, max_width=None) -> float:
         from mbti_tiktok_bot.design.core import chip_row
 
-        _, height = chip_row(draw, [chip], x, y, width or 600, align=align)
+        # A chip is as wide as its text plus its padding, so the text is fitted
+        # to what is left after the padding.
+        size = fit_label(text, "jp-bold", size - 4, None if max_width is None else max_width - 30, 0.0)
+        _, height = chip_row(draw, [self.chip(text, strong=True, size=size)], x, y, width or 600, align=align)
         return height
 
     def chip(self, label, strong=False, size=30) -> Chip:
@@ -397,10 +420,11 @@ class Editorial(Look):
             image.alpha_composite(art)
         return fx.grain(image, 0.045, seed=self.ctx.seed)
 
-    def eyebrow(self, draw, text, x, y, align="left", width=None, size=34) -> float:
-        block = T.single(text, "label" if text.isascii() else "jp-medium", size, tracking_em=0.3 if text.isascii() else 0.14)
-        T.draw(draw, block, x, y, self.rgba("accent"), align=align, box_width=width)
-        return T.ink_height(block)
+    def _label_face(self, text):
+        return ("label", 0.3) if text.isascii() else ("jp-medium", 0.14)
+
+    def eyebrow(self, draw, text, x, y, align="left", width=None, size=34, max_width=None) -> float:
+        return super().eyebrow(draw, text, x, y, align, width, size, max_width)
 
     def chip(self, label, strong=False, size=28) -> Chip:
         if strong:
@@ -475,9 +499,11 @@ class Brutal(Look):
             draw.line((x, y, x, y + 44 * sy), fill=self.rgba("ink", 200), width=2)
         return fx.grain(image, 0.03, seed=self.ctx.seed)
 
-    def eyebrow(self, draw, text, x, y, align="left", width=None, size=36) -> float:
+    def eyebrow(self, draw, text, x, y, align="left", width=None, size=36, max_width=None) -> float:
         label = f"[{text}]" if text.isascii() else f"■ {text}"
-        block = T.single(label, "label" if text.isascii() else "jp-bold", size, tracking_em=0.14 if text.isascii() else 0.06)
+        role, tracking = ("label", 0.14) if text.isascii() else ("jp-bold", 0.06)
+        size = fit_label(label, role, size, max_width, tracking)
+        block = T.single(label, role, size, tracking_em=tracking)
         T.draw(draw, block, x, y, self.ink, align=align, box_width=width)
         return T.ink_height(block)
 

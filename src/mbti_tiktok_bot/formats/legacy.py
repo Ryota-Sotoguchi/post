@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from mbti_tiktok_bot.catalog import TYPE_DATA
@@ -28,6 +29,9 @@ from mbti_tiktok_bot.formats.model import Card, Post
 SKIP = ("posts", "editorial_ikemen_bijo_20260703")
 CHIP_LIMIT = 10
 BODY_LIMIT = 90
+# The longest heading in the catalogue is 18 characters, and the section layout
+# shrinks a heading to fit rather than cutting it, so nothing needs an ellipsis.
+HEADING_LIMIT = 18
 
 
 def theme_slug(theme: str) -> str:
@@ -40,19 +44,30 @@ def _clip(text: object, limit: int) -> str:
     return value if len(value) <= limit else value[: limit - 1] + "…"
 
 
-def split_chips(body: str) -> tuple[tuple[str, ...], str]:
-    """Lift a slash-joined run of traits out of a body and return it as chips.
+# The two separators the old copy used for a list: a spaced ASCII slash and a
+# fullwidth one. Not "・", which it also used inside ordinary prose
+# (世話焼き・励ます人が反応薄め).
+LIST_SEPARATOR = re.compile(r"\s/\s|／")
 
-    The old planner joined a type's traits with " / " and pasted them in front
-    of the sentence that mattered - 先を読む / 感情より設計 / 必要な人には一途。雑談の…
+
+def split_chips(body: str) -> tuple[tuple[str, ...], str]:
+    """Lift a list of traits out of the front of a body and return it as chips.
+
+    The old planner joined a type's traits and pasted them in front of the
+    sentence that mattered - 先を読む / 感情より設計 / 必要な人には一途。雑談の… -
     which is a list pretending to be prose. It is the same information the
     current design sets as chips, so it goes back to being a list.
     """
     head, _, rest = body.partition("。")
-    segments = [segment.strip() for segment in head.split(" / ")]
-    if len(segments) < 2 or not rest.strip() or any(not (0 < len(segment) <= 12) for segment in segments):
+    segments = [segment.strip() for segment in LIST_SEPARATOR.split(head)]
+    if len(segments) < 2 or not rest.strip() or any(not (0 < len(segment) <= 14) for segment in segments):
         return (), body
     return tuple(segments), rest.strip()
+
+
+# A stray space between two Japanese characters is a typo in the old copy, and
+# the renderer has no reason to keep it.
+STRAY_SPACE = re.compile(r"(?<=[^\x00-\x7f]) (?=[^\x00-\x7f])")
 
 
 def packages(config: AppConfig, posted: set[str]) -> list[Path]:
@@ -84,10 +99,13 @@ def convert(package: dict, seq: int) -> Post:
 
     cards = [Card("cover", title=title, body=hook, label=str(package.get("theme") or "MBTI"), types=(mbti,))]
     for index, scene in enumerate(scenes, start=1):
-        own_chips, body = split_chips(" ".join(str(scene.get("body", "")).split()))
+        own_chips, body = split_chips(STRAY_SPACE.sub("", " ".join(str(scene.get("body", "")).split())))
+        # A list that runs into the middle of a sentence stays prose, with the
+        # separator the sentence should have had.
+        body = LIST_SEPARATOR.sub("、", body)
         cards.append(Card(
             "section",
-            title=_clip(scene["title"], 14),
+            title=_clip(scene["title"], HEADING_LIMIT),
             body=_clip(body, BODY_LIMIT),
             label=title,
             number=index,
