@@ -608,6 +608,48 @@
       "publish_id": "p_inbox_url~v2.7688365839640365076",
       "posted_at": "2026-09-22T14:28:05+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00019-ranking",
+      "title": "人を沼らせるタイプランキング",
+      "publish_id": "p_inbox_url~v2.7688942057214085121",
+      "posted_at": "2026-09-24T03:44:10+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00020-compat",
+      "title": "ISFPと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7688941954524203009",
+      "posted_at": "2026-09-24T03:44:21+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00021-gallery",
+      "title": "失恋した夜の16タイプ",
+      "publish_id": "p_inbox_url~v2.7688942057214167041",
+      "posted_at": "2026-09-24T03:44:32+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00022-manual",
+      "title": "ENFJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7688942057214199809",
+      "posted_at": "2026-09-24T03:44:42+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00023-ranking",
+      "title": "一番マイペースなタイプランキング",
+      "publish_id": "p_inbox_url~v2.7688941954524268545",
+      "posted_at": "2026-09-24T03:44:53+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00024-compat",
+      "title": "ESTPと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7688942318368147508",
+      "posted_at": "2026-09-24T03:45:04+00:00",
+      "status": "SENT"
     }
   ]
 }
