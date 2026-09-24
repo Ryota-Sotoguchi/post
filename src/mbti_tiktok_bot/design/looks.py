@@ -501,9 +501,14 @@ class Editorial(Look):
             side = min(right - left, bottom - top)
             cx = (left + right) / 2
             box = (cx - side / 2, bottom - side, cx + side / 2, bottom)
-        height = (box[3] - box[1])
+        width, height = box[2] - box[0], box[3] - box[1]
+        # A figure is about two thirds as wide as it is tall, so a window this
+        # narrow decides the size; taking it from the height instead filled an
+        # arch with one enormous face.
+        figure = min(height * (1.2 if shape == "circle" else 1.06), width * 1.5)
         return framed(self.ctx, mbti, box, shape_mask(self.ctx, box, shape), self.rgba("field"),
-                      height * (1.2 if shape == "circle" else 1.06), height * (0.08 if shape == "circle" else 0.10))
+                      figure, height * (0.08 if shape == "circle" else 0.10),
+                      overflow=height * (0.12 if shape == "circle" else 0.0))
 
 
 # --- BRUTAL -------------------------------------------------------------------

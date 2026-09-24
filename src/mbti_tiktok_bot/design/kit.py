@@ -163,11 +163,14 @@ def shape_mask(ctx: Context, box: tuple[float, float, float, float], shape: str,
 
 
 def framed(ctx: Context, mbti: str, box: tuple[float, float, float, float], mask: Image.Image,
-           field: tuple[int, int, int, int] | None, height: float, top_inset: float, treat=None) -> Image.Image:
-    """A character inside a shaped window, cropped by the window's edge.
+           field: tuple[int, int, int, int] | None, height: float, top_inset: float, treat=None,
+           overflow: float = 0.0) -> Image.Image:
+    """A character standing inside a shaped window, cropped by the window's edge.
 
-    The figure is sized to overflow the window and then clipped, so it reads
-    as a portrait cut into the page rather than a sticker placed on it.
+    The figure is sized to overflow the window a little and then clipped, so it
+    reads as a portrait cut into the page rather than a sticker placed on it.
+    It stands on the window's floor: sizing it to a tall narrow window and
+    hanging it from the top turned a whole figure into a crop of one face.
     """
     left, top, right, bottom = box
     layer = blank(ctx)
@@ -175,7 +178,8 @@ def framed(ctx: Context, mbti: str, box: tuple[float, float, float, float], mask
         ScaledDraw(layer, ctx.scale).rectangle(box, fill=field)
     figure_layer = blank(ctx)
     treated, size = subject(ctx, mbti, height, treat)
-    paste(figure_layer, ctx, treated, size, ((left + right) / 2, top + top_inset + height))
+    floor = min(top + top_inset + height, bottom + overflow)
+    paste(figure_layer, ctx, treated, size, ((left + right) / 2, floor))
     layer.alpha_composite(figure_layer)
     clipped = Image.new("RGBA", ctx.device, (0, 0, 0, 0))
     clipped.paste(layer, (0, 0), mask)
