@@ -15,9 +15,9 @@ from mbti_tiktok_bot.design.looks import Look
 from mbti_tiktok_bot.formats.model import Card, Post
 
 ROW_GAP = 40
-# Below this, a character placed above the copy reads as a sticker rather than
-# the subject of the slide, so the layout puts it beside the copy instead.
-MIN_ART = 380
+# How much of the width the copy takes on a section slide; the character
+# stands in what is left.
+COLUMN = 0.63
 
 
 def _archetype(mbti: str) -> str:
@@ -212,6 +212,13 @@ def grid(look: Look, post: Post, card: Card) -> Layers:
 
 
 def section(look: Look, post: Post, card: Card) -> Layers:
+    """Number, heading, copy on a panel, character in the column beside it.
+
+    Every section is laid out the same way, whatever the copy length. The
+    arrangement used to follow the copy - character above short copy, beside
+    long copy - which made the sixteen posts of one series look like sixteen
+    different designs.
+    """
     bg, accent, character, text = _start(look)
     draw = canvas(text, look.ctx)
     row = _top_row(look, draw, card.label, f"{card.number:02d} / {card.total:02d}")
@@ -222,26 +229,9 @@ def section(look: Look, post: Post, card: Card) -> Layers:
     title_top = top + numeral.height + 36
     look.draw_headline(draw, text, title, SAFE_LEFT, title_top)
 
-    region_top = title_top + title.height + 30
-    full = SAFE_WIDTH + 32
-    pad = look.panel_pad
-    _, copy_height, _ = _copy_height(look, card, full - pad * 2)
-    roomy = SAFE_BOTTOM - (copy_height + pad * 2) - region_top >= MIN_ART
-
-    if roomy:
-        # The copy is short: it sits across the page with the character above it.
-        panel_top = _panelled_copy(look, accent, draw, card, SAFE_BOTTOM)
-        side = 0.66 if card.number % 2 else 0.34
-        width = min(560, SAFE_WIDTH)
-        cx = SAFE_LEFT + SAFE_WIDTH * side
-        box = (cx - width / 2, region_top, cx + width / 2, panel_top - 24)
-    else:
-        # The copy is long: it takes two thirds of the width and the character
-        # stands in the column beside it, rather than being squeezed into a
-        # corner at a tenth of the size.
-        narrow = full * 0.63
-        _panelled_copy(look, accent, draw, card, SAFE_BOTTOM, width=narrow)
-        box = (SAFE_LEFT - 16 + narrow + 8, region_top - 40, SAFE_RIGHT + 60, SAFE_BOTTOM - 16)
+    panel_width = (SAFE_WIDTH + 32) * COLUMN
+    _panelled_copy(look, accent, draw, card, SAFE_BOTTOM, width=panel_width)
+    box = (SAFE_LEFT - 16 + panel_width + 8, title_top + title.height + 16, SAFE_RIGHT + 60, SAFE_BOTTOM - 16)
 
     character.alpha_composite(look.portrait(post.focus, box, index=card.number))
     return Layers(bg, accent, character, text, order=("background", "character", "accent", "text"))

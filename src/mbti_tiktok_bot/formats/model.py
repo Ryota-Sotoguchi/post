@@ -76,6 +76,13 @@ class Post:
     angle: str = ""  # 恋愛 / 友達 / 仕事 ...
     hashtags: tuple[str, ...] = ()
     cards: list[Card] = field(default_factory=list)
+    # A run of posts that share a subject: one角度 of the manual walked across
+    # the sixteen types, or one old theme. Everything in a series is drawn the
+    # same way - same look, same palette, same arrangement - and goes out
+    # 01 to 16 without anything else cutting in.
+    series: str = ""
+    series_index: int = 0  # which series this is, counting from the first
+    series_position: int = 0  # 1..16 within the series, 0 for a one-off
     source: str = "llm"  # "llm" or "template", for spotting a run that fell back
     # Stock rather than the day's work: the old themed carousels, redrawn in the
     # current design. It goes out only when nothing freshly written is waiting.
@@ -113,6 +120,9 @@ class Post:
             "focus": self.focus,
             "angle": self.angle,
             "hashtags": list(self.hashtags),
+            "series": self.series,
+            "series_index": self.series_index,
+            "series_position": self.series_position,
             "source": self.source,
             "filler": self.filler,
             "cards": [card.to_dict() for card in self.cards],
@@ -131,6 +141,9 @@ class Post:
             angle=data.get("angle", ""),
             hashtags=tuple(data.get("hashtags", [])),
             cards=[Card.from_dict(card) for card in data.get("cards", [])],
+            series=data.get("series", ""),
+            series_index=int(data.get("series_index", 0)),
+            series_position=int(data.get("series_position", 0)),
             source=data.get("source", "llm"),
             filler=bool(data.get("filler", False)),
         )

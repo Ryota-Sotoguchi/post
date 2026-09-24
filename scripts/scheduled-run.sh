@@ -32,6 +32,12 @@ step() {
     fi
 }
 
+# The approval marker is published by whoever approved last - the phone through
+# the authorize workflow, or this PC through `daily`. A local copy left over
+# from an approval that was already pushed is not worth a merge conflict that
+# stops the pull, and with it the day's syncing and posting.
+git checkout -- docs/authorized.json 2>/dev/null || true
+
 step pull     git pull --rebase --autostash origin main
 step generate "$PY" -m mbti_tiktok_bot run-daemon --run-once --no-reconcile
 step store    "$PY" -m tiktok_poster sync

@@ -64,13 +64,20 @@ def main() -> int:
     pending: list[tuple[Path, int]] = []
     next_number = max(index.values(), default=0) + 1
 
+    # Each old theme is a series: its posts share a look, a palette and an
+    # arrangement, and they go out one after another.
+    themes: dict[str, int] = {}
+    positions: dict[str, int] = {}
     for package in legacy.packages(config, sent_keys(config)):
-        name = f"{package.parent.parent.name}/{package.parent.name}"
+        theme = package.parent.parent.name
+        name = f"{theme}/{package.parent.name}"
         number = index.get(name)
         if number is None:
             number, next_number = next_number, next_number + 1
             index[name] = number
-        pending.append((package, number))
+        series_index = themes.setdefault(theme, len(themes) + 1)
+        positions[theme] = positions.get(theme, 0) + 1
+        pending.append((package, number, series_index, positions[theme]))
 
     done = [item for item in pending if (handoff_root(config) / f"L{item[1]:04d}-manual" / "post.json").exists()]
     todo = pending if args.redraw else [item for item in pending if item not in done]
@@ -79,7 +86,7 @@ def main() -> int:
         todo = todo[: args.limit]
 
     if args.dry_run:
-        for package, number in todo[:20]:
+        for package, number, _, _ in todo[:20]:
             print(f"  L{number:04d} <- {package.parent.parent.name}/{package.parent.name}")
         if len(todo) > 20:
             print(f"  ... and {len(todo) - 20} more")
@@ -87,12 +94,12 @@ def main() -> int:
 
     save_index(config, index)
     started = time.perf_counter()
-    for position, (package, number) in enumerate(todo, start=1):
-        post = legacy.convert(legacy.load(package), number)
+    for step, (package, number, series_index, position) in enumerate(todo, start=1):
+        post = legacy.convert(legacy.load(package), number, series_index, position)
         make_post(config, post, keep_source=False)
         elapsed = time.perf_counter() - started
-        print(f"[{position}/{len(todo)}] {post.key} {post.title} ({len(post.cards)} slides) "
-              f"{elapsed / position:.1f}s each", flush=True)
+        print(f"[{step}/{len(todo)}] {post.key} {post.title} ({len(post.cards)} slides) "
+              f"{elapsed / step:.1f}s each", flush=True)
     print(f"done in {(time.perf_counter() - started) / 60:.1f} min")
     print(f"out/{posts_root(config).name}, handoff {handoff_root(config)}")
     return 0

@@ -142,7 +142,7 @@ def _gallery_fallback(topic: str) -> dict[str, Item]:
     }
 
 
-def gallery(config: AppConfig, seq: int, topic: str, target: date) -> Post:
+def gallery(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
     data = _ask(config, _gallery_prompt(topic))
     items = _entries(data, "entries")
     source = "llm"
@@ -156,7 +156,7 @@ def gallery(config: AppConfig, seq: int, topic: str, target: date) -> Post:
                           number=index, total=len(TYPES), items=(items[mbti],), types=(mbti,)))
     cards.append(Card("closer", title="あなたは何タイプ？", body="コメントでタイプを教えて。当てはまった人は保存しておいてね。",
                       types=TYPES))
-    return Post(seq, "gallery", target.isoformat(), title, hook, topic=topic,
+    return Post(seq, "gallery", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
                 hashtags=_hashtags("gallery"), cards=cards, source=source)
 
 
@@ -185,7 +185,7 @@ def _ranking_fallback(topic: str) -> dict[str, Item]:
     }
 
 
-def ranking(config: AppConfig, seq: int, topic: str, target: date) -> Post:
+def ranking(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
     data = _ask(config, _ranking_prompt(topic))
     items = _entries(data, "ranking")
     source = "llm"
@@ -207,7 +207,7 @@ def ranking(config: AppConfig, seq: int, topic: str, target: date) -> Post:
                           items=(item,), types=(item.type,)))
     cards.append(Card("closer", title="自分のタイプは何位だった？", body="納得いかない人はコメントで反論して。",
                       types=tuple(item.type for item in by_rank[:4])))
-    return Post(seq, "ranking", target.isoformat(), title, hook, topic=topic,
+    return Post(seq, "ranking", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
                 hashtags=_hashtags("ranking", (by_rank[0].type,)), cards=cards, source=source)
 
 
@@ -237,7 +237,8 @@ def _manual_fallback(mbti: str, angle: str) -> list[tuple[str, str, tuple[str, .
     ]
 
 
-def manual(config: AppConfig, seq: int, mbti: str, angle: str, target: date) -> Post:
+def manual(config: AppConfig, seq: int, mbti: str, angle: str, target: date,
+           series: str = "", series_index: int = 0, position: int = 0) -> Post:
     data = _ask(config, _manual_prompt(mbti, angle))
     skeleton = K.MANUAL_SECTIONS[angle]
     sections: list[tuple[str, str, tuple[str, ...]]] = []
@@ -261,6 +262,7 @@ def manual(config: AppConfig, seq: int, mbti: str, angle: str, target: date) -> 
                           total=len(sections), chips=chips, types=(mbti,)))
     cards.append(Card("closer", title=f"周りの{mbti}に送ってみて", body="当たってたら保存。答え合わせしてみてね。", types=(mbti,)))
     return Post(seq, "manual", target.isoformat(), title, hook, focus=mbti, angle=angle,
+                series=series, series_index=series_index, series_position=position,
                 hashtags=_hashtags("manual", (mbti,), angle), cards=cards, source=source)
 
 
@@ -302,7 +304,8 @@ def _pairs(data: dict | None, mbti: str) -> tuple[list[Item], list[Item]] | None
     return result[0], result[1]
 
 
-def compat(config: AppConfig, seq: int, mbti: str, angle: str, target: date) -> Post:
+def compat(config: AppConfig, seq: int, mbti: str, angle: str, target: date,
+           series: str = "", series_index: int = 0, position: int = 0) -> Post:
     data = _ask(config, _compat_prompt(mbti, angle))
     pairs = _pairs(data, mbti)
     source = "llm"
@@ -330,6 +333,7 @@ def compat(config: AppConfig, seq: int, mbti: str, angle: str, target: date) -> 
     cards.append(Card("closer", title="相手のタイプはどうだった？", body="気になる人に送って、答え合わせしてみて。",
                       types=(mbti, good[0].type)))
     return Post(seq, "compat", target.isoformat(), title, hook, focus=mbti, angle=angle,
+                series=series, series_index=series_index, series_position=position,
                 hashtags=_hashtags("compat", (mbti,), angle), cards=cards, source=source)
 
 

@@ -87,8 +87,12 @@ def packages(config: AppConfig, posted: set[str]) -> list[Path]:
     return found
 
 
-def convert(package: dict, seq: int) -> Post:
-    """One legacy package as a post of the current kind."""
+def convert(package: dict, seq: int, series_index: int = 0, position: int = 0) -> Post:
+    """One legacy package as a post of the current kind.
+
+    The theme it came from is its series, so a theme's sixteen types are drawn
+    the same way even though they are converted one at a time.
+    """
     mbti = str(package["mbti_type"])
     title = str(package["title"])
     hook = _clip(package.get("hook"), 60)
@@ -116,6 +120,7 @@ def convert(package: dict, seq: int) -> Post:
     cards.append(Card("closer", title=f"周りの{mbti}に送ってみて",
                       body="当てはまったら保存。気になる人と答え合わせしてみて。", types=(mbti,)))
 
+    series = str(package.get("series_name") or package.get("format_name") or "")
     return Post(
         seq=seq,
         format="manual",
@@ -126,6 +131,9 @@ def convert(package: dict, seq: int) -> Post:
         angle=str(package.get("theme", "")),
         hashtags=tuple(str(tag) for tag in package.get("hashtags", ())),
         cards=cards,
+        series=f"legacy:{series}",
+        series_index=series_index,
+        series_position=position,
         source="legacy",
         filler=True,
     )

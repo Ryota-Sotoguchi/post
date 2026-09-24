@@ -281,6 +281,15 @@ def _push_access_token(config: Config) -> int:
     marker = config.publish_dir.parent / "authorized.json"
     marker.parent.mkdir(parents=True, exist_ok=True)
     marker.write_text(json.dumps({"expires_at": token.expires_at}, indent=2), encoding="utf-8")
+    # Pushed straight away. Left uncommitted it is a local change to a file the
+    # authorize workflow also writes, and the next scheduled `git pull --rebase
+    # --autostash` stops on the conflict - which is what silently held up two
+    # days of syncing and posting.
+    try:
+        if pages.push(config, f"authorized: token good until {token.expires_at}", marker):
+            print("Published the approval marker.")
+    except pages.PagesError as error:
+        print(f"Could not publish the approval marker: {error}")
 
     print(f"Stored for the scheduled runs; they can post until {token.expires_at}.")
     return 0

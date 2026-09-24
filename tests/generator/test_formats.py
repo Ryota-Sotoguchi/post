@@ -15,10 +15,11 @@ from mbti_tiktok_bot.config import load_config
 from mbti_tiktok_bot.design import backgrounds
 from mbti_tiktok_bot.design import text as T
 from mbti_tiktok_bot.design.core import Context
-from mbti_tiktok_bot.design.engine import look_name, render_post
+from mbti_tiktok_bot.design.engine import look_name, palette_for, render_post
 from mbti_tiktok_bot.design.fonts import face
 from mbti_tiktok_bot.design.looks import LOOK_ORDER
 from mbti_tiktok_bot.formats import legacy, planner, produce, writer
+from mbti_tiktok_bot.formats import topics as K
 from mbti_tiktok_bot.formats.model import Card, Item, Post
 
 TARGET = date(2026, 9, 20)
@@ -58,44 +59,51 @@ def _small_post(seq: int = 3) -> Post:
 
 
 class PlannerTests(unittest.TestCase):
-    def test_ten_posts_follow_the_pattern_and_never_repeat_a_format_back_to_back(self) -> None:
+    def test_a_series_runs_all_sixteen_types_before_anything_else(self) -> None:
+        # The point of the series: a type-by-type subject goes out 01 to 16
+        # with no ranking or gallery cutting into the middle of it.
         with tempfile.TemporaryDirectory() as temp_dir:
             config = _config(Path(temp_dir))
             state = planner.FormatState()
-            formats = []
-            for _ in range(20):
+            specs = []
+            for _ in range(34):
                 spec = planner.next_spec(config, state)
-                formats.append(spec.format)
+                specs.append(spec)
                 planner.advance(state, spec)
-        self.assertEqual(tuple(formats[:10]), planner.PATTERN)
-        self.assertEqual(formats[10:], formats[:10])
-        self.assertTrue(all(a != b for a, b in zip(formats, formats[1:])))
 
-    def test_manual_and_compat_on_the_same_day_are_about_different_types(self) -> None:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            config = _config(Path(temp_dir))
-            state = planner.FormatState()
-            focus: dict[str, set[str]] = {"manual": set(), "compat": set()}
-            for _ in range(10):
-                spec = planner.next_spec(config, state)
-                if spec.format in focus:
-                    focus[spec.format].add(spec.focus)
-                planner.advance(state, spec)
-        self.assertFalse(focus["manual"] & focus["compat"])
+        first = specs[:16]
+        self.assertEqual({spec.format for spec in first}, {"manual"})
+        self.assertEqual([spec.focus for spec in first], list(MBTI_POST_ORDER))
+        self.assertEqual([spec.position for spec in first], list(range(1, 17)))
+        self.assertEqual({spec.angle for spec in first}, {"基本"})
+        # Then one post of something else, then the next subject, in full.
+        self.assertEqual(specs[16].format, "gallery")
+        self.assertEqual({spec.format for spec in specs[17:33]}, {"compat"})
+        self.assertEqual([spec.focus for spec in specs[17:33]], list(MBTI_POST_ORDER))
+        self.assertEqual(specs[33].format, "ranking")
 
-    def test_manual_walks_all_sixteen_types_before_changing_angle(self) -> None:
+    def test_every_post_of_a_series_carries_the_same_series(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             config = _config(Path(temp_dir))
             state = planner.FormatState()
-            seen = []
-            while len(seen) < 17:
+            specs = [planner.next_spec(config, state) for _ in range(1)]
+            for _ in range(15):
+                planner.advance(state, specs[-1])
+                specs.append(planner.next_spec(config, state))
+        self.assertEqual({spec.series for spec in specs}, {"manual:基本"})
+        self.assertEqual({spec.series_index for spec in specs}, {1})
+
+    def test_the_angle_moves_on_each_time_a_format_comes_round(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = _config(Path(temp_dir))
+            state = planner.FormatState()
+            angles = []
+            while len(angles) < 4:
                 spec = planner.next_spec(config, state)
-                if spec.format == "manual":
-                    seen.append((spec.focus, spec.angle))
+                if spec.format == "manual" and spec.position == 1:
+                    angles.append(spec.angle)
                 planner.advance(state, spec)
-        self.assertEqual([mbti for mbti, _ in seen[:16]], list(MBTI_POST_ORDER))
-        self.assertEqual(len({angle for _, angle in seen[:16]}), 1)
-        self.assertNotEqual(seen[16][1], seen[0][1])
+        self.assertEqual(angles, list(K.MANUAL_ANGLES[:4]))
 
     def test_state_round_trips(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -251,13 +259,18 @@ class RenderTests(unittest.TestCase):
             for name in ("slide_01.png", "slide_02.png"):
                 self.assertEqual((first / name).read_bytes(), (second / name).read_bytes())
 
-    def test_consecutive_posts_never_share_a_look(self) -> None:
-        looks = [look_name(_small_post(seq)) for seq in range(1, 12)]
-        self.assertTrue(all(a != b for a, b in zip(looks, looks[1:])))
+    def test_a_series_is_one_look_and_one_palette(self) -> None:
+        # Sixteen posts of one subject used to arrive in four looks and four
+        # colour schemes, which is what made them look unrelated.
+        posts = [replace(_small_post(seq), series="manual:恋愛", series_index=3, focus=mbti)
+                 for seq, mbti in enumerate(MBTI_POST_ORDER, start=40)]
+        self.assertEqual({look_name(post) for post in posts}, {LOOK_ORDER[2]})
+        self.assertEqual(len({palette_for(post).name for post in posts}), 1)
 
+    def test_consecutive_series_do_not_share_a_look(self) -> None:
+        looks = [look_name(replace(_small_post(1), series=f"manual:{n}", series_index=n)) for n in range(1, 5)]
+        self.assertEqual(len(set(looks)), len(LOOK_ORDER))
 
-class BackgroundTextureTests(unittest.TestCase):
-    """The library is optional, chosen by seed, and never drawn from at runtime."""
 
     def test_an_empty_library_leaves_every_look_drawing_itself(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -352,7 +365,7 @@ class ProduceTests(unittest.TestCase):
                 produce.produce(config, TARGET, 2)
 
             keys = [call.args[1].key for call in make_mock.call_args_list]
-            self.assertEqual(keys, ["00006-gallery", "00007-compat"])
+            self.assertEqual(keys, ["00006-manual", "00007-manual"])
             self.assertEqual(planner.load_state(config).next_seq, 8)
 
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from pathlib import Path
 
 from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS, GROUP_PALETTES
 
@@ -63,3 +64,46 @@ class PaletteContrastTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ContrastTests(unittest.TestCase):
+    """Every piece of type a look sets, on every palette, at a readable ratio.
+
+    The brutal look was setting black type on a saturated mid-lightness field,
+    where neither black nor white gets past 4:1 - and mapping the characters
+    between the two, which turned them grey. Colours are chosen by measurement
+    now, so this walks all of them.
+    """
+
+    def test_every_look_reads_on_every_palette(self) -> None:
+        from mbti_tiktok_bot.config import load_config
+        from mbti_tiktok_bot.design import contrast
+        from mbti_tiktok_bot.design.core import Context
+        from mbti_tiktok_bot.design.looks import LOOKS
+
+        config = load_config(Path.cwd())
+        for group, variants in GROUP_PALETTE_VARIANTS.items():
+            for palette in variants:
+                for name, look_class in LOOKS.items():
+                    # Brutal picks a loud or a quiet field from the seed; both run.
+                    for seed in (1, 2):
+                        look = look_class(Context(config=config, palette=palette, seed=seed, scale=1))
+                        for what, ink, behind in look.pairs():
+                            with self.subTest(look=name, palette=palette.name, element=what):
+                                self.assertGreaterEqual(
+                                    contrast.ratio(ink, behind), contrast.BODY,
+                                    f"{what}: {ink} on {behind}",
+                                )
+
+    def test_a_field_is_never_left_in_the_middle(self) -> None:
+        from mbti_tiktok_bot.design import contrast
+
+        for group, variants in GROUP_PALETTE_VARIANTS.items():
+            for palette in variants:
+                for dark in (True, False):
+                    field = contrast.ground(palette.accent, dark=dark)
+                    with self.subTest(palette=palette.name, dark=dark):
+                        if dark:
+                            self.assertLessEqual(contrast.luminance(field), contrast.DEEP + 0.01)
+                        else:
+                            self.assertGreaterEqual(contrast.luminance(field), contrast.PALE - 0.01)

@@ -17,6 +17,7 @@ import random
 
 from PIL import Image, ImageFilter
 
+from mbti_tiktok_bot.design import contrast as C
 from mbti_tiktok_bot.design import effects as fx
 from mbti_tiktok_bot.design import text as T
 from mbti_tiktok_bot.design.backgrounds import texture
@@ -63,6 +64,14 @@ class Look:
 
     def rgba(self, key: str, alpha: int = 255) -> RGBA:
         return fx.rgba(self.c[key], alpha)
+
+    def pairs(self) -> list[tuple[str, str, str]]:
+        """(what, ink, what is behind it) for every piece of type the look sets.
+
+        The contrast test walks these for all twenty-four palettes; a look that
+        adds a coloured surface adds the pair that goes with it.
+        """
+        raise NotImplementedError
 
     @property
     def ink(self) -> RGBA:
@@ -202,14 +211,30 @@ class Neon(Look):
 
     def colors(self) -> dict[str, str]:
         neon = vivid(self.ctx.palette.accent, 0.82, 1.0)
+        ground = fx.mix(self.ctx.palette.background, "#05040a", 0.88)
+        # A deep indigo is still dark at full saturation, and it carries the
+        # eyebrow and the numerals, so it is brightened until it reads.
         return {
-            "ground": fx.mix(self.ctx.palette.background, "#05040a", 0.88),
+            "ground": ground,
             "ink": "#ffffff",
-            "accent": neon,
-            "accent2": neon_partner(neon),
+            "accent": C.against(neon, ground),
+            "accent2": C.against(neon_partner(neon), ground, C.LARGE),
             "soft": fx.mix(self.ctx.palette.light, "#ffffff", 0.3),
-            "caution": "#ff4d6d",
+            "caution": C.against("#ff4d6d", ground),
         }
+
+    def pairs(self) -> list[tuple[str, str, str]]:
+        # The aurora only lifts the ground, so the base colour is the worst case
+        # for white type and the best case for the accent; both are checked.
+        return [
+            ("headline", self.c["ink"], self.c["ground"]),
+            ("body", self.c["ink"], self.c["ground"]),
+            ("eyebrow", self.c["accent"], self.c["ground"]),
+            ("numeral", self.c["accent"], self.c["ground"]),
+            ("chip", self.c["ink"], self.c["ground"]),
+            ("strong chip", self.c["ground"], self.c["accent"]),
+            ("caution", self.c["caution"], self.c["ground"]),
+        ]
 
     def background(self) -> Image.Image:
         w, h = self.ctx.device
@@ -291,14 +316,27 @@ class Bubble(Look):
             "pastel": fx.mix(base, "#ffffff", 0.50),
             "pastel2": fx.mix(partner, "#ffffff", 0.58),
             "accent": vivid(self.ctx.palette.accent, 0.66, 0.90),
+            # The number badge is a small disc carrying type, so it is deep
+            # enough for white to read; the sparkles keep the bright accent.
+            "badge": C.deepen(vivid(self.ctx.palette.accent, 0.72, 0.92), 0.15),
             "accent2": vivid(partner, 0.55, 0.96),
             "ink": fx.mix(self.ctx.palette.accent_deep, "#140c1c", 0.45),
-            "caution": "#ff5a78",
+            "caution": C.against("#ff5a78", fx.mix(base, "#ffffff", 0.84)),
         }
 
     @property
     def sub(self) -> RGBA:
         return self.rgba("ink", 235)
+
+    def pairs(self) -> list[tuple[str, str, str]]:
+        return [
+            ("headline", self.c["ink"], self.c["paper"]),
+            ("body", self.c["ink"], "#ffffff"),  # the body sits on a white card
+            ("eyebrow", "#ffffff", self.c["ink"]),  # the eyebrow is a filled chip
+            ("numeral", C.readable(self.c["badge"], self.c["ink"], "#ffffff"), self.c["badge"]),
+            ("chip", self.c["ink"], self.c["pastel"]),
+            ("caution", self.c["caution"], self.c["paper"]),
+        ]
 
     def background(self) -> Image.Image:
         w, h = self.ctx.device
@@ -346,8 +384,9 @@ class Bubble(Look):
         block = T.single(text, "display", int(size * 0.62))
         diameter = size
         left = x if align == "left" else (x + (width or diameter) - diameter if align == "right" else x + ((width or diameter) - diameter) / 2)
-        draw.ellipse((left, y, left + diameter, y + diameter), fill=self.rgba("accent"))
-        T.draw(draw, block, left, y + (diameter - T.ink_height(block)) / 2, (255, 255, 255, 255), align="center", box_width=diameter)
+        draw.ellipse((left, y, left + diameter, y + diameter), fill=self.rgba("badge"))
+        T.draw(draw, block, left, y + (diameter - T.ink_height(block)) / 2,
+               fx.rgba(C.readable(self.c["badge"], self.c["ink"], "#ffffff")), align="center", box_width=diameter)
         return T.Block(block.lines, block.role, block.size, block.tracking, block.leading, diameter, diameter)
 
     def type_mark(self, layer, draw, mbti, y, size=520, alpha=255) -> None:
@@ -411,6 +450,17 @@ class Editorial(Look):
     def sub(self) -> RGBA:
         return self.rgba("ink", 230)
 
+    def pairs(self) -> list[tuple[str, str, str]]:
+        return [
+            ("headline", self.c["ink"], self.c["paper"]),
+            ("body", self.c["ink"], self.c["paper"]),
+            ("eyebrow", self.c["accent"], self.c["paper"]),
+            ("numeral", self.c["accent"], self.c["paper"]),
+            ("chip", self.c["ink"], self.c["paper"]),
+            ("strong chip", self.c["paper"], self.c["ink"]),
+            ("caution", self.c["caution"], self.c["paper"]),
+        ]
+
     def background(self) -> Image.Image:
         image = fx.solid(self.ctx.device, self.rgba("paper"))
         # Paper stock: the fibres and the raking light, in the palette's own
@@ -468,14 +518,32 @@ class Brutal(Look):
     def colors(self) -> dict[str, str]:
         accent = vivid(self.ctx.palette.accent, 0.86, 0.96)
         loud = _seed_choice(self.ctx.seed, "brutal.mode", 2) == 1
+        # A saturated accent sits in the middle of the range, where black reads
+        # at 4:1 and white at 4:1 and the characters come out grey. The field
+        # keeps the hue but goes to one end, and the ink follows from there.
+        field = C.ground(accent, dark=loud)
+        ink = C.readable(field, "#0d0d0d", "#f7f5f0")
         return {
-            "field": accent if loud else "#ebeae4",
-            "accent": "#f4f3ee" if loud else accent,
-            "ink": "#0d0d0d",
-            "block": "#f4f3ee" if loud else "#0d0d0d",
-            "caution": "#ff3b30" if not loud else "#0d0d0d",
+            "field": field,
+            "accent": C.against(C.paled(accent, 0.70) if loud else C.deepen(accent, 0.12), field),
+            "ink": ink,
+            "block": ink,
+            "shade": C.deepen(accent, 0.02) if loud else "#0d0d0d",
+            "tint": "#ffffff" if loud else C.paled(accent, 0.74),
+            "caution": C.against("#ff6a58" if loud else "#d33a2c", field),
             "loud": "1" if loud else "",
         }
+
+    def pairs(self) -> list[tuple[str, str, str]]:
+        return [
+            ("headline", self.c["ink"], self.c["field"]),
+            ("body", self.c["ink"], self.c["field"]),
+            ("eyebrow", self.c["ink"], self.c["field"]),
+            ("numeral", self.c["field"], self.c["block"]),
+            ("chip", self.c["ink"], self.c["field"]),
+            ("accent", self.c["accent"], self.c["field"]),
+            ("caution", self.c["caution"], self.c["field"]),
+        ]
 
     @property
     def sub(self) -> RGBA:
@@ -485,7 +553,7 @@ class Brutal(Look):
         image = fx.solid(self.ctx.device, self.rgba("field"))
         # Faint enough to be a printed underlay: the slide's own type and blocks
         # have to stay the loudest thing on it.
-        art = texture(self.ctx, self.name, self.c["ink"], self.c["field"], 32)
+        art = texture(self.ctx, self.name, self.c["shade"], self.c["field"], 46 if self.c["loud"] else 32)
         if art is not None:
             image.alpha_composite(art)
         draw = canvas(image, self.ctx)
@@ -523,19 +591,21 @@ class Brutal(Look):
 
     def type_mark(self, layer, draw, mbti, y, size=760, alpha=255) -> None:
         block = T.single(mbti, "display", size, tracking_em=-0.02)
-        T.draw(draw, block, -24, y, self.rgba("accent") if not self.c["loud"] else self.ink)
+        T.draw(draw, block, -24, y, self.rgba("accent"))
 
     def panel(self, layer, box) -> None:
         canvas(layer, self.ctx).rectangle((box[0], box[1], box[0] + 120, box[1] + 12), fill=self.ink)
 
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         ctx = self.ctx
-        light = "#ffffff" if self.c["loud"] else self.c["accent"]
-        mid = fx.mix(self.c["field"], self.c["ink"], 0.35) if self.c["loud"] else None
+        # Mapped between a shade and a tint of the field's own hue, so a figure
+        # reads as a lit shape on the page instead of grey on colour.
+        shade, tint = self.c["shade"], self.c["tint"]
 
         def treat(figure):
-            toned = fx.duotone(figure, self.c["ink"], light, mid)
-            return fx.shadow(toned, (ctx.px(8 if small else 14), ctx.px(8 if small else 14)), 0.1, self.rgba("ink"))
+            toned = fx.duotone(figure, shade, tint)
+            return fx.shadow(toned, (ctx.px(8 if small else 14), ctx.px(8 if small else 14)), 0.1,
+                             fx.rgba(shade, 210))
 
         return self._fit(mbti, box, treat)
 

@@ -7,7 +7,7 @@ import json
 import shutil
 from pathlib import Path
 
-from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS, TYPE_DATA
+from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.design.cards import LAYOUTS
 from mbti_tiktok_bot.design.core import HEIGHT, WIDTH, Context
@@ -19,18 +19,34 @@ from mbti_tiktok_bot.visuals import RENDER_SCALE, _compose_scene, _save_layer, _
 GROUPS = ("分析家", "外交官", "番人", "探検家")
 
 
+def subject_of(post: Post) -> str:
+    """What the post belongs to: its series, or itself when it is a one-off.
+
+    Everything drawn from the same subject shares a seed, so the sixteen posts
+    of a series come out in one look, one palette and one arrangement.
+    """
+    return post.series or post.key
+
+
 def post_seed(post: Post) -> int:
-    return int.from_bytes(hashlib.sha256(f"{post.key}|{post.title}".encode("utf-8")).digest()[:8], "big")
+    return int.from_bytes(hashlib.sha256(subject_of(post).encode("utf-8")).digest()[:8], "big")
 
 
 def look_name(post: Post) -> str:
-    """Looks rotate with the post number, so the feed never shows one look twice running."""
-    return LOOK_ORDER[post.seq % len(LOOK_ORDER)]
+    """Looks rotate with the series, so consecutive series never look alike."""
+    if post.series_index:
+        return LOOK_ORDER[(post.series_index - 1) % len(LOOK_ORDER)]
+    return LOOK_ORDER[_seed_choice(post_seed(post), "look", len(LOOK_ORDER))]
 
 
 def palette_for(post: Post):
+    """One colour scheme per subject, the way a magazine feature has one.
+
+    It used to be the focus type's own group, which meant the sixteen posts of
+    a series arrived in four different colour schemes.
+    """
     seed = post_seed(post)
-    group = str(TYPE_DATA[post.focus]["group"]) if post.focus else GROUPS[_seed_choice(seed, "group", len(GROUPS))]
+    group = GROUPS[_seed_choice(seed, "group", len(GROUPS))]
     variants = GROUP_PALETTE_VARIANTS[group]
     return variants[_seed_choice(seed, "palette", len(variants))]
 
@@ -47,8 +63,10 @@ def render_post(post: Post, config: AppConfig, slides_dir: Path, look: str | Non
     chosen = look or look_name(post)
     style = LOOKS[chosen](ctx)
     (slides_dir.parent / "visual_identity.json").write_text(
-        json.dumps({"version": 7, "look": chosen, "palette": ctx.palette.name, "format": post.format,
-                    "render_scale": RENDER_SCALE}, ensure_ascii=False, indent=2),
+        json.dumps({"version": 8, "look": chosen, "palette": ctx.palette.name, "format": post.format,
+                    "series": post.series, "series_index": post.series_index,
+                    "series_position": post.series_position, "render_scale": RENDER_SCALE},
+                   ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 

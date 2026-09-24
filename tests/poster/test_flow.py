@@ -316,3 +316,35 @@ def test_sync_commits_the_generator_state_with_the_media(config: Config) -> None
     assert str(state_dir / "legacy_converted.json") in pushed
     # Actions writes this one; sync committing a stale local copy would race it.
     assert str(config.state_path) not in pushed
+
+
+def test_storing_the_secret_publishes_the_approval_marker(config: Config) -> None:
+    """Left uncommitted, the marker collides with the one the authorize workflow
+    writes, and the next scheduled pull stops on that conflict - which is what
+    silently held up two days of syncing and posting."""
+    from tiktok_poster.cli import _push_access_token
+
+    _authorize(config)
+
+    with patch("tiktok_poster.cli.subprocess.run",
+               return_value=type("Result", (), {"returncode": 0, "stderr": ""})()), patch(
+        "tiktok_poster.cli.pages.push", return_value=True
+    ) as push:
+        assert _push_access_token(config) == 0
+
+    marker = config.publish_dir.parent / "authorized.json"
+    assert marker.exists()
+    assert str(marker) in {str(path) for path in push.call_args.args[2:]}
+
+
+def test_a_failed_marker_push_does_not_fail_the_approval(config: Config) -> None:
+    from tiktok_poster.cli import _push_access_token
+    from tiktok_poster.pages import PagesError
+
+    _authorize(config)
+
+    with patch("tiktok_poster.cli.subprocess.run",
+               return_value=type("Result", (), {"returncode": 0, "stderr": ""})()), patch(
+        "tiktok_poster.cli.pages.push", side_effect=PagesError("no remote")
+    ):
+        assert _push_access_token(config) == 0
