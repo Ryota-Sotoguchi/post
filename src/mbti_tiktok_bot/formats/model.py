@@ -147,3 +147,33 @@ class Post:
             source=data.get("source", "llm"),
             filler=bool(data.get("filler", False)),
         )
+
+
+# A post of one of these formats is about the sixteen types, so all sixteen
+# have to be in it - each with a slide of its own.
+EVERY_TYPE = ("gallery", "ranking")
+
+
+def verify(post: Post, types: tuple[str, ...]) -> None:
+    """Raise unless the post holds what its format promises.
+
+    A ranking with twelve of its types sharing three slides passed every other
+    check: the copy was complete and the slide count matched the cards. What it
+    did not do was give each type a picture, which is the thing the format is
+    for.
+    """
+    if post.format not in EVERY_TYPE:
+        return
+    entries = [card for card in post.cards if card.kind == "entry"]
+    subjects = [card.types[0] for card in entries if card.types]
+    missing = [mbti for mbti in types if mbti not in subjects]
+    if missing:
+        raise ValueError(f"{post.key}: no slide of its own for {', '.join(missing)}")
+    repeated = [mbti for mbti in set(subjects) if subjects.count(mbti) > 1]
+    if repeated:
+        raise ValueError(f"{post.key}: {', '.join(sorted(repeated))} appears on more than one slide")
+    if len(entries) != len(types):
+        raise ValueError(f"{post.key}: {len(entries)} slides for {len(types)} types")
+    cover = next((card for card in post.cards if card.kind == "cover"), None)
+    if cover is not None and set(cover.types) != set(types):
+        raise ValueError(f"{post.key}: the cover shows {len(set(cover.types))} of {len(types)} types")

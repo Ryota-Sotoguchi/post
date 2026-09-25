@@ -23,7 +23,8 @@ from pathlib import Path
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.design.engine import render_post
 from mbti_tiktok_bot.formats import planner, writer
-from mbti_tiktok_bot.formats.model import Post
+from mbti_tiktok_bot.catalog import MBTI_POST_ORDER
+from mbti_tiktok_bot.formats.model import Post, verify
 
 POSTS_DIR = "posts"
 HANDOFF_DIR = "_posts"
@@ -115,6 +116,7 @@ def make_post(config: AppConfig, post: Post, keep_source: bool = True) -> Path:
     needed, and two copies of a few thousand slides is gigabytes; post.json
     stays, so any of them can be drawn again.
     """
+    verify(post, tuple(MBTI_POST_ORDER))
     folder = posts_root(config) / post.key
     (folder / META).unlink(missing_ok=True)
     render_post(post, config, folder / "slides")

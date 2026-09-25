@@ -47,6 +47,12 @@ def canvas(image: Image.Image, ctx: Context) -> ScaledDraw:
 # --- characters -------------------------------------------------------------
 
 
+# Below this a figure is a smudge, not a character. A layout that asks for one
+# has run out of room, and the slide would look as though the type were
+# missing - so it fails here instead of going out like that.
+MIN_FIGURE = 60
+
+
 def subject(
     ctx: Context,
     mbti: str,
@@ -61,7 +67,9 @@ def subject(
     came out at 6.6% of the frame. Returns the treated image and the device
     size of the figure inside it, so a treatment's padding can be allowed for.
     """
-    figure = fx.fit_height(ctx.subject_of(mbti), max(ctx.px(height), 2))
+    if height < MIN_FIGURE:
+        raise ValueError(f"No room to draw {mbti}: {height:.0f}px tall, the minimum is {MIN_FIGURE}px")
+    figure = fx.fit_height(ctx.subject_of(mbti), ctx.px(height))
     if max_width is not None and figure.width > ctx.px(max_width):
         figure = fx.fit_width(figure, ctx.px(max_width))
     size = figure.size

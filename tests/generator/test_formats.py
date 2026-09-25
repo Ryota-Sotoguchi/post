@@ -20,7 +20,7 @@ from mbti_tiktok_bot.design.fonts import face
 from mbti_tiktok_bot.design.looks import LOOK_ORDER
 from mbti_tiktok_bot.formats import legacy, planner, produce, writer
 from mbti_tiktok_bot.formats import topics as K
-from mbti_tiktok_bot.formats.model import Card, Item, Post
+from mbti_tiktok_bot.formats.model import Card, Item, Post, verify
 
 TARGET = date(2026, 9, 20)
 
@@ -134,12 +134,13 @@ class WriterFallbackTests(unittest.TestCase):
         self.assertEqual(kinds, ["cover", *["entry"] * 16, "closer"])
         self.assertEqual(sorted(card.items[0].type for card in post.cards[1:-1]), sorted(MBTI_POST_ORDER))
 
-    def test_ranking_counts_down_from_sixteen_to_one(self) -> None:
+    def test_ranking_gives_every_type_a_slide_of_its_own(self) -> None:
         post = writer.ranking(self.config, 3, "怒らせると一番怖いタイプ", TARGET)
-        ranks = [item.rank for card in post.cards if card.kind in ("grid", "entry") for item in card.items]
-        self.assertEqual(ranks, list(range(16, 0, -1)))
-        types = [item.type for card in post.cards if card.kind in ("grid", "entry") for item in card.items]
-        self.assertEqual(sorted(types), sorted(MBTI_POST_ORDER))
+        entries = [card for card in post.cards if card.kind == "entry"]
+        self.assertEqual([card.number for card in entries], list(range(16, 0, -1)))
+        self.assertEqual(sorted(card.types[0] for card in entries), sorted(MBTI_POST_ORDER))
+        self.assertEqual([card.kind for card in post.cards],
+                         ["cover", *["entry"] * 16, "closer"])
 
     def test_manual_has_one_section_per_heading(self) -> None:
         post = writer.manual(self.config, 2, "ESFP", "恋愛", TARGET)
@@ -234,6 +235,45 @@ class LegacyConversionTests(unittest.TestCase):
         post = legacy.convert({**LEGACY, "scenes": [
             {"title": "見出し", "body": "感情を決めつける／正論で押す／即レスを求めると閉じやすい。"}]}, 1)
         self.assertEqual(post.cards[1].body, "感情を決めつける、正論で押す、即レスを求めると閉じやすい。")
+
+
+class EveryTypePresentTests(unittest.TestCase):
+    """A post about the sixteen types has to carry all sixteen, one slide each."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.config = _config(Path(self.temp.name))
+        self.types = tuple(MBTI_POST_ORDER)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_a_written_gallery_and_ranking_pass(self) -> None:
+        for post in (writer.gallery(self.config, 1, "既読スルーされた時", TARGET),
+                     writer.ranking(self.config, 2, "怒らせると一番怖いタイプ", TARGET)):
+            verify(post, self.types)
+
+    def test_a_type_without_a_slide_is_caught(self) -> None:
+        post = writer.ranking(self.config, 2, "怒らせると一番怖いタイプ", TARGET)
+        dropped = post.cards.pop(5)
+        with self.assertRaises(ValueError) as caught:
+            verify(post, self.types)
+        self.assertIn(dropped.types[0], str(caught.exception))
+
+    def test_two_slides_of_one_type_are_caught(self) -> None:
+        post = writer.gallery(self.config, 1, "既読スルーされた時", TARGET)
+        post.cards[2] = replace(post.cards[2], types=post.cards[1].types, items=post.cards[1].items)
+        with self.assertRaises(ValueError):
+            verify(post, self.types)
+
+    def test_a_post_that_is_not_about_all_sixteen_is_left_alone(self) -> None:
+        verify(_small_post(), self.types)
+
+    def test_drawing_a_post_runs_the_check(self) -> None:
+        post = writer.ranking(self.config, 2, "怒らせると一番怖いタイプ", TARGET)
+        post.cards.pop(5)
+        with self.assertRaises(ValueError):
+            produce.make_post(self.config, post)
 
 
 class RenderTests(unittest.TestCase):
@@ -371,3 +411,21 @@ class ProduceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class NoRoomTests(unittest.TestCase):
+    """A character too small to see is a failure, not a slide."""
+
+    def test_a_figure_with_no_room_stops_the_render(self) -> None:
+        from mbti_tiktok_bot.design.core import Context
+        from mbti_tiktok_bot.design.kit import MIN_FIGURE, subject
+        from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS
+
+        config = load_config(Path.cwd())
+        ctx = Context(config=config, palette=GROUP_PALETTE_VARIANTS["分析家"][0], seed=1, scale=1)
+        with self.assertRaises(ValueError) as caught:
+            subject(ctx, "INTJ", MIN_FIGURE - 1)
+        self.assertIn("INTJ", str(caught.exception))
+        # And the size just above it draws.
+        figure, size = subject(ctx, "INTJ", MIN_FIGURE)
+        self.assertEqual(size[1], MIN_FIGURE)

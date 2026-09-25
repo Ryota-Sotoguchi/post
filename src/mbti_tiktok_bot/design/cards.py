@@ -177,37 +177,6 @@ def entry(look: Look, post: Post, card: Card) -> Layers:
 # --- four ranks at once ---------------------------------------------------------
 
 
-def grid(look: Look, post: Post, card: Card) -> Layers:
-    bg, accent, character, text = _start(look)
-    draw = canvas(text, look.ctx)
-    row = _top_row(look, draw, post.title, "")
-    heading = look.headline(card.title, SAFE_WIDTH, 140, 96, 56, lines=1)
-    heading_top = SAFE_TOP + row + 28
-    look.draw_headline(draw, text, heading, SAFE_LEFT, heading_top)
-
-    top = heading_top + heading.height + 40
-    left, right, bottom = SAFE_LEFT - 24, SAFE_RIGHT + 40, SAFE_BOTTOM + 40
-    gap = 20
-    cell_w = (right - left - gap) / 2
-    cell_h = (bottom - top - gap) / 2
-    for index, item in enumerate(card.items[:4]):
-        col, rank_row = index % 2, index // 2
-        x0 = left + col * (cell_w + gap)
-        y0 = top + rank_row * (cell_h + gap)
-        look.panel(accent, (x0, y0, x0 + cell_w, y0 + cell_h))
-        pad = 22
-        number = look.numeral(accent, canvas(accent, look.ctx), str(item.rank), x0 + pad, y0 + pad, 96)
-        line = T.fit(item.title, "jp-bold", cell_w - pad * 2, 96, 34, 24, leading=1.3, max_lines=2)
-        name = T.single(item.type, "display", 52, tracking_em=0.02)
-        line_top = y0 + cell_h - pad - line.height
-        name_top = line_top - 14 - name.height
-        art = (x0 + pad + number.width * 0.4, y0 + pad + 10, x0 + cell_w - pad, name_top - 10)
-        character.alpha_composite(look.portrait(item.type, art, index=index, small=True))
-        T.draw(draw, name, x0 + pad, name_top, look.rgba("accent"))
-        T.draw(draw, line, x0 + pad, line_top, look.sub)
-    return Layers(bg, accent, character, text, order=("background", "accent", "character", "text"))
-
-
 # --- a manual section -------------------------------------------------------------
 
 
@@ -300,4 +269,6 @@ def closer(look: Look, post: Post, card: Card) -> Layers:
     return Layers(bg, accent, character, text)
 
 
-LAYOUTS = {"cover": cover, "entry": entry, "grid": grid, "section": section, "pair": pair, "closer": closer}
+# "grid" is gone: a ranking put its bottom twelve four to a slide, which left
+# most of the sixteen types without a picture of their own.
+LAYOUTS = {"cover": cover, "entry": entry, "section": section, "pair": pair, "closer": closer}

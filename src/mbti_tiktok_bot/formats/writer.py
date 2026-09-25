@@ -195,16 +195,12 @@ def ranking(config: AppConfig, seq: int, topic: str, target: date, series: str =
     hook = _clip((data or {}).get("hook") or f"1位は意外なあのタイプ。{topic}を16位から発表", 60)
     title = K.ranking_title(topic)
     cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["ranking"], types=TYPES)]
-    # The bottom twelve go four to a slide; the top four get a slide each, so
-    # the count slows down as it nears first place.
-    for low in (16, 12, 8):
-        group = tuple(item for item in reversed(by_rank) if low - 3 <= item.rank <= low)
-        cards.append(Card("grid", title=f"{low}位〜{low - 3}位", label=topic, number=low, total=16,
-                          items=group, types=tuple(item.type for item in group)))
-    for rank in (4, 3, 2, 1):
-        item = by_rank[rank - 1]
-        cards.append(Card("entry", title=item.title, body=item.body, label=f"第{rank}位", number=rank, total=16,
-                          items=(item,), types=(item.type,)))
+    # Every type gets its own slide, counted down from sixteenth. The bottom
+    # twelve used to share three slides four at a time, which left most of the
+    # types without a picture of their own.
+    for item in reversed(by_rank):
+        cards.append(Card("entry", title=item.title, body=item.body, label=f"第{item.rank}位",
+                          number=item.rank, total=len(TYPES), items=(item,), types=(item.type,)))
     cards.append(Card("closer", title="自分のタイプは何位だった？", body="納得いかない人はコメントで反論して。",
                       types=tuple(item.type for item in by_rank[:4])))
     return Post(seq, "ranking", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
