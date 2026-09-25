@@ -97,6 +97,12 @@ FORMAT_HASHTAGS = {
 }
 ANGLE_HASHTAGS = {"恋愛": "#恋愛", "友達": "#友達", "仕事": "#仕事"}
 
+# People look for their own type by name, so a post carries the tags of the
+# types it is actually about. A sixteen-type post cannot carry all sixteen
+# without reading as tag spam, so it takes the ones searched most in Japan.
+POPULAR_TYPES = ("INFP", "INFJ", "ENFP", "INTJ")
+TYPE_TAG_LIMIT = 5
+
 
 def gallery_title(topic: str) -> str:
     return f"{topic}の16タイプ"

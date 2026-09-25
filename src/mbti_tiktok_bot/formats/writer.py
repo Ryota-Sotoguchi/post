@@ -94,7 +94,11 @@ def _hashtags(fmt: str, types: tuple[str, ...] = (), angle: str = "") -> tuple[s
     tags = [*K.BASE_HASHTAGS, *K.FORMAT_HASHTAGS[fmt]]
     if angle in K.ANGLE_HASHTAGS:
         tags.append(K.ANGLE_HASHTAGS[angle])
-    tags.extend(f"#{mbti}" for mbti in types)
+    # The types the post is about come first, then the ones most searched, up
+    # to the limit: a sixteen-type post had no type tag at all, so nobody
+    # looking for their own type could find it.
+    wanted = [*types, *K.POPULAR_TYPES][: K.TYPE_TAG_LIMIT] if fmt in ("gallery", "ranking") else types
+    tags.extend(f"#{mbti}" for mbti in dict.fromkeys(wanted))
     return tuple(dict.fromkeys(tags))
 
 
@@ -157,7 +161,7 @@ def gallery(config: AppConfig, seq: int, topic: str, target: date, series: str =
     cards.append(Card("closer", title="あなたは何タイプ？", body="コメントでタイプを教えて。当てはまった人は保存しておいてね。",
                       types=TYPES))
     return Post(seq, "gallery", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
-                hashtags=_hashtags("gallery"), cards=cards, source=source)
+                hashtags=_hashtags("gallery", K.POPULAR_TYPES), cards=cards, source=source)
 
 
 # --- ranking ----------------------------------------------------------------
@@ -171,7 +175,9 @@ def _ranking_prompt(topic: str) -> str:
         "- title: その順位になった決め手を一言で（10〜16字）\n"
         "- body: 理由（25〜40字）。読んだ人が「わかる」か「異議あり」と言いたくなるように\n"
         "- hook: 表紙の一文（25〜40字）。1位を知りたくて最後まで見たくなるように、1位は明かさない\n"
-        '形式: {"hook": "...", "ranking": [{"type": "ENTJ", "title": "...", "body": "..."}]}\n'
+        "- question: 最後のスライドで聞く二択（20〜32字）。1位と、1位になりそうだった別のタイプを実名で挙げて"
+        "「1位は◯◯？それとも△△？」の形にする。コメントで一言で答えられること\n"
+        '形式: {"hook": "...", "question": "...", "ranking": [{"type": "ENTJ", "title": "...", "body": "..."}]}\n'
         f"タイプの参考情報:\n{_type_notes()}"
     )
 
@@ -201,10 +207,16 @@ def ranking(config: AppConfig, seq: int, topic: str, target: date, series: str =
     for item in reversed(by_rank):
         cards.append(Card("entry", title=item.title, body=item.body, label=f"第{item.rank}位",
                           number=item.rank, total=len(TYPES), items=(item,), types=(item.type,)))
-    cards.append(Card("closer", title="自分のタイプは何位だった？", body="納得いかない人はコメントで反論して。",
+    # A question with two named answers gets replied to; "コメントで反論して"
+    # asks the viewer to compose something, which is a lot more to ask.
+    question = _clip((data or {}).get("question"), 40)
+    if not question or by_rank[0].type not in question:
+        question = f"1位は{by_rank[0].type}？それとも{by_rank[1].type}？"
+    cards.append(Card("closer", title="自分のタイプは何位だった？", body=question,
                       types=tuple(item.type for item in by_rank[:4])))
     return Post(seq, "ranking", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
-                hashtags=_hashtags("ranking", (by_rank[0].type,)), cards=cards, source=source)
+                hashtags=_hashtags("ranking", tuple(item.type for item in by_rank[:3])),
+                cards=cards, source=source)
 
 
 # --- manual -----------------------------------------------------------------
@@ -330,7 +342,7 @@ def compat(config: AppConfig, seq: int, mbti: str, angle: str, target: date,
                       types=(mbti, good[0].type)))
     return Post(seq, "compat", target.isoformat(), title, hook, focus=mbti, angle=angle,
                 series=series, series_index=series_index, series_position=position,
-                hashtags=_hashtags("compat", (mbti,), angle), cards=cards, source=source)
+                hashtags=_hashtags("compat", (mbti, good[0].type), angle), cards=cards, source=source)
 
 
 def dumps(post: Post) -> str:

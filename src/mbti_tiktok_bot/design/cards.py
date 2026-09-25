@@ -104,7 +104,17 @@ def cover(look: Look, post: Post, card: Card) -> Layers:
     title = look.headline(card.title, SAFE_WIDTH, 460, 128, 64)
     hook_top = SAFE_BOTTOM - hook.height
     title_top = hook_top - 44 - title.height
-    region = (SAFE_LEFT - 40, SAFE_TOP + row + ROW_GAP, SAFE_RIGHT + 40, title_top - 44)
+    top_of_type = title_top
+
+    # A countdown that starts at sixteenth needs a reason to be followed, so
+    # the cover says where it ends up.
+    promise = [look.chip("1位は最後に発表", strong=True, size=32)] if post.format == "ranking" else []
+    if promise:
+        _, promise_height = chip_row(draw, promise, SAFE_LEFT, 0, SAFE_WIDTH, draw=False)
+        top_of_type = title_top - 20 - promise_height
+        chip_row(draw, promise, SAFE_LEFT, top_of_type, SAFE_WIDTH)
+
+    region = (SAFE_LEFT - 40, SAFE_TOP + row + ROW_GAP, SAFE_RIGHT + 40, top_of_type - 44)
 
     if post.format in ("gallery", "ranking"):
         _grid_of_sixteen(look, character, draw, card.types, region)
