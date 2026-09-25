@@ -1,18 +1,18 @@
 {
-  "next_seq": 53,
+  "next_seq": 58,
   "series_count": 3,
   "series": {
     "format": "manual",
     "angle": "恋愛",
     "number": 3,
-    "position": 2
+    "position": 7
   },
   "between": false,
   "one_offs": 20,
   "cursors": {
     "gallery": 10,
     "ranking": 10,
-    "manual": 17,
+    "manual": 22,
     "compat": 15
   },
   "extra_topics": {
