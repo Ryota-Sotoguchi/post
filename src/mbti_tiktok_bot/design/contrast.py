@@ -20,7 +20,10 @@ from mbti_tiktok_bot.design.effects import hex_rgb, mix
 # Where a field may sit, as relative luminance. Between these two an ink of
 # either polarity is a compromise.
 DEEP = 0.09
-PALE = 0.62
+# A pale field is nearly paper: the characters keep their own colours, and a
+# field with much hue left in it swallowed the ones that shared its hue - a
+# gold ESFP on pale gold.
+PALE = 0.82
 # What the copy has to clear.
 BODY = 4.5
 LARGE = 3.0

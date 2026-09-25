@@ -524,9 +524,11 @@ class Brutal(Look):
         accent = vivid(self.ctx.palette.accent, 0.86, 0.96)
         loud = _seed_choice(self.ctx.seed, "brutal.mode", 2) == 1
         # A saturated accent sits in the middle of the range, where black reads
-        # at 4:1 and white at 4:1 and the characters come out grey. The field
-        # keeps the hue but goes to one end, and the ink follows from there.
-        field = C.ground(accent, dark=loud)
+        # at 4:1 and white at 4:1. The loud field takes it to the deep end,
+        # where white type and the characters' own colours both stand out. The
+        # quiet field is paper with a whisper of the hue in it: any more and a
+        # character sharing that hue - a gold ESFP on gold - disappears into it.
+        field = C.deepen(accent) if loud else fx.mix("#f1eee7", accent, 0.06)
         ink = C.readable(field, "#0d0d0d", "#f7f5f0")
         return {
             "field": field,
@@ -534,7 +536,6 @@ class Brutal(Look):
             "ink": ink,
             "block": ink,
             "shade": C.deepen(accent, 0.02) if loud else "#0d0d0d",
-            "tint": "#ffffff" if loud else C.paled(accent, 0.74),
             "caution": C.against("#ff6a58" if loud else "#d33a2c", field),
             "loud": "1" if loud else "",
         }
@@ -603,14 +604,16 @@ class Brutal(Look):
 
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         ctx = self.ctx
-        # Mapped between a shade and a tint of the field's own hue, so a figure
-        # reads as a lit shape on the page instead of grey on colour.
-        shade, tint = self.c["shade"], self.c["tint"]
+        # The characters keep their own colours. Mapping them onto two tones of
+        # the field made the sixteen types sixteen identical silhouettes, and
+        # the type you were looking for was the one you could not pick out.
+        # The look comes from the keyline and the hard shadow instead.
+        keyline = fx.rgba(self.c["ink"])
+        shade = fx.rgba(self.c["shade"], 210)
 
         def treat(figure):
-            toned = fx.duotone(figure, shade, tint)
-            return fx.shadow(toned, (ctx.px(8 if small else 14), ctx.px(8 if small else 14)), 0.1,
-                             fx.rgba(shade, 210))
+            edged = fx.outline(figure, ctx.px(5 if small else 8), keyline)
+            return fx.shadow(edged, (ctx.px(8 if small else 14), ctx.px(8 if small else 14)), 0.1, shade)
 
         return self._fit(mbti, box, treat)
 
