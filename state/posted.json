@@ -650,6 +650,48 @@
       "publish_id": "p_inbox_url~v2.7688942318368147508",
       "posted_at": "2026-09-24T03:45:04+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00025-manual",
+      "title": "ENFPの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7689403277574047765",
+      "posted_at": "2026-09-25T09:33:18+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00026-gallery",
+      "title": "ドタキャンされた時の16タイプ",
+      "publish_id": "p_inbox_url~v2.7689403442493704212",
+      "posted_at": "2026-09-25T09:33:30+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00027-compat",
+      "title": "ESFPと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7689403363210053653",
+      "posted_at": "2026-09-25T09:33:40+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00028-manual",
+      "title": "ISTJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7689403382928115718",
+      "posted_at": "2026-09-25T09:33:51+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00029-ranking",
+      "title": "嘘が一番下手なタイプランキング",
+      "publish_id": "p_inbox_url~v2.7689403442493802516",
+      "posted_at": "2026-09-25T09:34:02+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00030-compat",
+      "title": "INTJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7689403388903573524",
+      "posted_at": "2026-09-25T09:34:13+00:00",
+      "status": "SENT"
     }
   ]
 }
