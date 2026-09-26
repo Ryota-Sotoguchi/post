@@ -1,14 +1,19 @@
 {
-  "next_seq": 68,
-  "series_count": 3,
-  "series": null,
+  "next_seq": 71,
+  "series_count": 4,
+  "series": {
+    "format": "compat",
+    "angle": "友達",
+    "number": 4,
+    "position": 3
+  },
   "between": false,
   "one_offs": 21,
   "cursors": {
     "gallery": 11,
     "ranking": 10,
     "manual": 31,
-    "compat": 15
+    "compat": 18
   },
   "extra_topics": {
     "gallery": [],
