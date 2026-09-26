@@ -699,6 +699,41 @@
       "publish_id": "p_inbox_url~v2.7689488605181659143",
       "posted_at": "2026-09-25T15:03:35+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00032-manual",
+      "title": "ISFJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7689797902662928404",
+      "posted_at": "2026-09-26T11:04:12+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00033-ranking",
+      "title": "隠れ天才タイプランキング",
+      "publish_id": "p_inbox_url~v2.7689797933727303701",
+      "posted_at": "2026-09-26T11:04:23+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00034-compat",
+      "title": "INTPと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7689798047430674453",
+      "posted_at": "2026-09-26T11:04:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00035-manual",
+      "title": "ESTJの取扱説明書",
+      "publish_id": "p_inbox_url~v2.7689798028888049685",
+      "posted_at": "2026-09-26T11:04:45+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00036-gallery",
+      "title": "月曜の朝の16タイプ",
+      "publish_id": "p_inbox_url~v2.7689798028888147989",
+      "posted_at": "2026-09-26T11:04:56+00:00",
+      "status": "SENT"
     }
   ]
 }
