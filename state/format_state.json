@@ -1,11 +1,11 @@
 {
-  "next_seq": 78,
+  "next_seq": 81,
   "series_count": 4,
   "series": {
     "format": "compat",
     "angle": "友達",
     "number": 4,
-    "position": 10
+    "position": 13
   },
   "between": false,
   "one_offs": 21,
@@ -13,7 +13,7 @@
     "gallery": 11,
     "ranking": 10,
     "manual": 31,
-    "compat": 25
+    "compat": 28
   },
   "extra_topics": {
     "gallery": [],
