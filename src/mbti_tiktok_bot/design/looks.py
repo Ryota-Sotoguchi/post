@@ -110,8 +110,13 @@ class Look:
     def body(self, text: str, width: float, height: float = 440, base: int = 46, minimum: int = 34) -> T.Block:
         return T.fit(text, self.body_role, width, height, base, minimum, leading=self.body_leading)
 
-    def draw_body(self, draw, block: T.Block, x: float, y: float, align: str = "left", width: float | None = None) -> None:
-        T.draw(draw, block, x, y, self.sub, align=align, box_width=width)
+    def draw_body(self, draw, block: T.Block, x: float, y: float, align: str = "left", width: float | None = None,
+                  color: RGBA | None = None) -> None:
+        T.draw(draw, block, x, y, color or self.sub, align=align, box_width=width)
+
+    def bubble_ink(self, incoming: bool) -> RGBA:
+        """What a chat bubble's text is set in, given what the bubble is filled with."""
+        return self.sub
 
     def eyebrow(self, draw, text: str, x: float, y: float, align: str = "left", width: float | None = None,
                 size: int = 36, max_width: float | None = None) -> float:
@@ -171,6 +176,14 @@ class Look:
     # -- surfaces ------------------------------------------------------------
     def panel(self, layer, box: tuple[float, float, float, float]) -> None:
         """What sits behind a paragraph."""
+
+    def bubble(self, layer, box: tuple[float, float, float, float], incoming: bool) -> None:
+        """A chat bubble. Incoming is the message that arrived; the other is the reply.
+
+        The default is the panel, so a look that says nothing here still draws
+        something readable behind the text.
+        """
+        self.panel(layer, box)
 
     def scrim(self, layer, top: float, bottom: float) -> None:
         """Darken or lighten a band so copy reads over art."""
@@ -279,6 +292,16 @@ class Neon(Look):
         from mbti_tiktok_bot.design.kit import vscrim
 
         layer.alpha_composite(vscrim(self.ctx, top, bottom, self.c["ground"], 0, 225))
+
+    def bubble(self, layer, box, incoming) -> None:
+        if incoming:
+            glass(layer, self.ctx, self.ground(), box, 34, (255, 255, 255, 26), self.rgba("soft", 60))
+            return
+        draw = canvas(layer, self.ctx)
+        draw.rounded_rectangle(box, radius=34, fill=self.rgba("accent", 46), outline=self.rgba("accent", 230), width=3)
+
+    def bubble_ink(self, incoming) -> RGBA:
+        return self.ink
 
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         ctx = self.ctx
@@ -401,6 +424,18 @@ class Bubble(Look):
         layer.alpha_composite(shadow.filter(ImageFilter.GaussianBlur(ctx.px(14))))
         canvas(layer, ctx).rounded_rectangle(box, radius=48, fill=(255, 255, 255, 246))
 
+    def bubble(self, layer, box, incoming) -> None:
+        draw = canvas(layer, self.ctx)
+        radius = 44
+        if incoming:
+            draw.rounded_rectangle(box, radius=radius, fill=(255, 255, 255, 250), outline=self.rgba("pastel"), width=3)
+        else:
+            draw.rounded_rectangle(box, radius=radius, fill=self.rgba("badge"))
+
+    def bubble_ink(self, incoming) -> RGBA:
+        # The reply sits on the badge colour, which is deep enough for white.
+        return self.sub if incoming else fx.rgba(C.readable(self.c["badge"], self.c["ink"], "#ffffff"))
+
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         ctx = self.ctx
         left, top, right, bottom = box
@@ -493,6 +528,13 @@ class Editorial(Look):
     def panel(self, layer, box) -> None:
         draw = canvas(layer, self.ctx)
         draw.line((box[0], box[1], box[2], box[1]), fill=self.rgba("ink", 200), width=2)
+
+    def bubble(self, layer, box, incoming) -> None:
+        draw = canvas(layer, self.ctx)
+        if incoming:
+            draw.rectangle(box, outline=self.rgba("ink", 150), width=2)
+        else:
+            draw.rectangle(box, fill=self.rgba("field"), outline=self.rgba("ink", 200), width=2)
 
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         shape = "circle" if small or (box[2] - box[0]) > (box[3] - box[1]) * 0.95 else "arch"
@@ -601,6 +643,17 @@ class Brutal(Look):
 
     def panel(self, layer, box) -> None:
         canvas(layer, self.ctx).rectangle((box[0], box[1], box[0] + 120, box[1] + 12), fill=self.ink)
+
+    def bubble(self, layer, box, incoming) -> None:
+        draw = canvas(layer, self.ctx)
+        if not incoming:
+            draw.rectangle((box[0] + 10, box[1] + 10, box[2] + 10, box[3] + 10), fill=self.rgba("ink", 60))
+        draw.rectangle(box, fill=self.rgba("field") if incoming else fx.rgba("#ffffff", 235),
+                       outline=self.ink, width=3)
+
+    def bubble_ink(self, incoming) -> RGBA:
+        # The reply is on white, whatever the field is doing.
+        return self.sub if incoming else fx.rgba("#0d0d0d")
 
     def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
         ctx = self.ctx

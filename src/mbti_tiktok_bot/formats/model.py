@@ -2,21 +2,32 @@
 
 A post is a format, a title and hook, and a run of cards. A card is one slide's
 content; the renderer decides how it is drawn. Keeping the two apart is what
-lets four formats share four looks.
+lets ten formats share four looks.
 """
 
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-FORMATS = ("gallery", "ranking", "manual", "compat")
+# Six of these cover the sixteen types inside one post; four walk a subject
+# across several posts (see the planner).
+FORMATS = (
+    "gallery", "ranking", "quiz", "chat", "landmine", "roles",  # one post each
+    "manual", "compat", "remedy", "versus",                     # a post per subject
+)
 
 # What the format is called on the slide itself.
 FORMAT_LABELS = {
     "gallery": "16TYPES",
     "ranking": "RANKING",
+    "quiz": "セリフ当て",
+    "chat": "返信例",
+    "landmine": "地雷ワード",
+    "roles": "役割診断",
     "manual": "取扱説明書",
     "compat": "相性診断",
+    "remedy": "処方箋",
+    "versus": "似てる2タイプ",
 }
 
 
@@ -32,7 +43,9 @@ class Item:
 
 @dataclass(frozen=True, slots=True)
 class Card:
-    kind: str  # cover | entry | grid | section | pair | closer
+    # cover | entry | section | pair | closer         (the first four formats)
+    # quiz | answer | chat | nogo | map | role | dose | versus  (the six new ones)
+    kind: str
     title: str = ""
     body: str = ""
     label: str = ""
@@ -151,7 +164,12 @@ class Post:
 
 # A post of one of these formats is about the sixteen types, so all sixteen
 # have to be in it - each with a slide of its own.
-EVERY_TYPE = ("gallery", "ranking")
+EVERY_TYPE = ("gallery", "ranking", "chat", "landmine")
+# And these carry all sixteen, but on shared slides: a map of four roles is
+# the format, not sixteen slides of one type each.
+ALL_PRESENT = ("roles",)
+# The slides that are about one type: whatever a format calls them.
+SUBJECT_KINDS = ("entry", "chat", "nogo", "answer")
 
 
 def verify(post: Post, types: tuple[str, ...]) -> None:
@@ -162,9 +180,15 @@ def verify(post: Post, types: tuple[str, ...]) -> None:
     did not do was give each type a picture, which is the thing the format is
     for.
     """
+    if post.format in ALL_PRESENT:
+        shown = {mbti for card in post.cards for mbti in card.types}
+        missing = [mbti for mbti in types if mbti not in shown]
+        if missing:
+            raise ValueError(f"{post.key}: {', '.join(missing)} is on no slide at all")
+        return
     if post.format not in EVERY_TYPE:
         return
-    entries = [card for card in post.cards if card.kind == "entry"]
+    entries = [card for card in post.cards if card.kind in SUBJECT_KINDS]
     subjects = [card.types[0] for card in entries if card.types]
     missing = [mbti for mbti in types if mbti not in subjects]
     if missing:

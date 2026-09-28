@@ -29,10 +29,33 @@ TYPES = tuple(MBTI_POST_ORDER)
 SIMILAR = 0.8
 
 # A series is one of these, taken in turn; the angle moves on each time the
-# format comes round again.
-SERIES_FORMATS = ("manual", "compat")
-ONE_OFFS = ("gallery", "ranking")
-SERIES_LENGTH = len(TYPES)
+# format comes round again. Manual, compat and remedy walk the sixteen types;
+# versus walks the eight pairs that get mistaken for each other.
+SERIES_FORMATS = ("manual", "compat", "remedy", "versus")
+SERIES_ANGLES = {
+    "manual": K.MANUAL_ANGLES,
+    "compat": K.COMPAT_ANGLES,
+    "remedy": K.REMEDY_ANGLES,
+    "versus": ("",),
+}
+ONE_OFFS = ("gallery", "ranking", "quiz", "chat", "landmine", "roles")
+ONE_OFF_TOPICS = {
+    "gallery": "GALLERY_TOPICS",
+    "ranking": "RANKING_TOPICS",
+    "quiz": "QUIZ_TOPICS",
+    "chat": "CHAT_TOPICS",
+    "landmine": "LANDMINE_TOPICS",
+    "roles": "ROLE_TOPICS",
+}
+
+
+def series_length(fmt: str) -> int:
+    return len(K.VERSUS_PAIRS) if fmt == "versus" else len(TYPES)
+
+
+def series_subject(fmt: str, position: int):
+    """What the post at this position in the series is about."""
+    return K.VERSUS_PAIRS[position] if fmt == "versus" else TYPES[position]
 
 
 @dataclass(slots=True)
@@ -45,7 +68,7 @@ class FormatState:
     between: bool = False
     one_offs: int = 0
     cursors: dict[str, int] = field(default_factory=lambda: {name: 0 for name in FORMATS})
-    extra_topics: dict[str, list[str]] = field(default_factory=lambda: {"gallery": [], "ranking": []})
+    extra_topics: dict[str, list[str]] = field(default_factory=lambda: {name: [] for name in ONE_OFFS})
 
     def to_dict(self) -> dict:
         return {
@@ -76,7 +99,7 @@ def load_state(config: AppConfig) -> FormatState:
     state.between = bool(data.get("between", False))
     state.one_offs = int(data.get("one_offs", 0))
     state.cursors.update({name: int(value) for name, value in data.get("cursors", {}).items()})
-    for name in ("gallery", "ranking"):
+    for name in ONE_OFFS:
         state.extra_topics[name] = [str(topic) for topic in data.get("extra_topics", {}).get(name, [])]
     return state
 
@@ -89,23 +112,34 @@ def save_state(config: AppConfig, state: FormatState) -> Path:
 
 
 def _pool(name: str, state: FormatState) -> list[str]:
-    seeds = K.GALLERY_TOPICS if name == "gallery" else K.RANKING_TOPICS
-    return [*seeds, *state.extra_topics[name]]
+    seeds = getattr(K, ONE_OFF_TOPICS[name])
+    return [*seeds, *state.extra_topics.get(name, [])]
 
 
 def _similar(candidate: str, existing: list[str]) -> bool:
     return any(SequenceMatcher(None, candidate, other).ratio() >= SIMILAR for other in existing)
 
 
+ASK_FOR_TOPICS = {
+    "gallery": ("MBTI16タイプの反応を並べる「〇〇の16タイプ」投稿のお題を考えてください。"
+                "誰もが経験する具体的な瞬間を、「〇〇の時」「〇〇な夜」のような10〜16字の名詞句で。"),
+    "ranking": ("MBTI16タイプを順位づけする「〇〇ランキング」投稿のお題を考えてください。"
+                "「一番〇〇なタイプ」のように、1位が気になって議論が起きる、10〜18字の名詞句で。"),
+    "quiz": ("「このセリフ、どのタイプ？」クイズのお題を考えてください。"
+             "「〇〇の時の一言」のように、誰もが聞いたことのある場面を8〜16字で。"),
+    "chat": ("MBTI16タイプの返信を並べる投稿の場面を考えてください。"
+             "「〇〇と送られた時」のように、実際にLINEで起きる場面を10〜20字で。"),
+    "landmine": ("MBTI16タイプそれぞれの地雷になる一言を並べる投稿のお題を考えてください。"
+                 "「〇〇な一言」のように、言われた側が引く場面を10〜20字で。"),
+    "roles": ("MBTI16タイプを4つの役割に分ける投稿の場面を考えてください。"
+              "「飲み会」「グループ旅行」のように、人が集まる具体的な場面を4〜12字で。"),
+}
+
+
 def _more_topics(config: AppConfig, name: str, state: FormatState, count: int = 10) -> list[str]:
     """Ask for fresh topics once the pool is used up. Empty when that fails."""
     existing = _pool(name, state)
-    if name == "gallery":
-        ask = ("MBTI16タイプの反応を並べる「〇〇の16タイプ」投稿のお題を考えてください。"
-               "誰もが経験する具体的な瞬間を、「〇〇の時」「〇〇な夜」のような10〜16字の名詞句で。")
-    else:
-        ask = ("MBTI16タイプを順位づけする「〇〇ランキング」投稿のお題を考えてください。"
-               "「一番〇〇なタイプ」のように、1位が気になって議論が起きる、10〜18字の名詞句で。")
+    ask = ASK_FOR_TOPICS[name]
     prompt = (
         f"{ask}\n{count}個。すでに使ったものと被らないこと:\n" + "、".join(existing)
         + '\n形式: {"topics": ["..."]}'
@@ -114,6 +148,7 @@ def _more_topics(config: AppConfig, name: str, state: FormatState, count: int = 
     fresh: list[str] = []
     for topic in (data or {}).get("topics", []) if isinstance((data or {}).get("topics"), list) else []:
         value = " ".join(str(topic).split()).removesuffix("ランキング").removesuffix("の16タイプ")
+        state.extra_topics.setdefault(name, [])
         if 4 <= len(value) <= 22 and not _similar(value, existing + fresh):
             fresh.append(value)
     return fresh
@@ -129,16 +164,17 @@ class Spec:
     series: str = ""
     series_index: int = 0
     position: int = 0  # 1..16 inside a series, 0 for a one-off
+    pair: tuple[str, ...] = ()  # the two types a versus post compares
 
 
 def series_name(fmt: str, angle: str) -> str:
-    return f"{fmt}:{angle}"
+    return f"{fmt}:{angle}" if angle else fmt
 
 
 def _start_series(state: FormatState) -> dict:
-    """The next subject to walk across the sixteen types."""
+    """The next subject to walk, and the angle this lap takes it from."""
     fmt = SERIES_FORMATS[state.series_count % len(SERIES_FORMATS)]
-    angles = K.MANUAL_ANGLES if fmt == "manual" else K.COMPAT_ANGLES
+    angles = SERIES_ANGLES[fmt]
     lap = state.series_count // len(SERIES_FORMATS)
     return {
         "format": fmt,
@@ -167,29 +203,37 @@ def next_spec(config: AppConfig, state: FormatState) -> Spec:
         state.series_count = int(state.series["number"])
     if state.series is not None:
         current = state.series
+        fmt = str(current["format"])
         position = int(current["position"])
+        subject = series_subject(fmt, position)
         return Spec(
             state.next_seq,
-            str(current["format"]),
-            focus=TYPES[position],
+            fmt,
+            focus=subject if isinstance(subject, str) else subject[0],
             angle=str(current["angle"]),
-            series=series_name(str(current["format"]), str(current["angle"])),
+            pair=() if isinstance(subject, str) else subject,
+            series=series_name(fmt, str(current["angle"])),
             series_index=int(current["number"]),
             position=position + 1,
         )
     return _one_off(config, state)
 
 
+ONE_OFF_WRITERS = {
+    "gallery": "gallery", "ranking": "ranking", "quiz": "quiz",
+    "chat": "chat", "landmine": "landmine", "roles": "roles",
+}
+
+
 def write(config: AppConfig, spec: Spec, target: date) -> Post:
-    if spec.format == "gallery":
-        return writer.gallery(config, spec.seq, spec.topic, target, spec.series, spec.series_index)
-    if spec.format == "ranking":
-        return writer.ranking(config, spec.seq, spec.topic, target, spec.series, spec.series_index)
-    if spec.format == "manual":
-        return writer.manual(config, spec.seq, spec.focus, spec.angle, target,
+    if spec.format in ONE_OFF_WRITERS:
+        return getattr(writer, ONE_OFF_WRITERS[spec.format])(
+            config, spec.seq, spec.topic, target, spec.series, spec.series_index)
+    if spec.format == "versus":
+        return writer.versus(config, spec.seq, tuple(spec.pair), target,
                              spec.series, spec.series_index, spec.position)
-    return writer.compat(config, spec.seq, spec.focus, spec.angle, target,
-                         spec.series, spec.series_index, spec.position)
+    return getattr(writer, spec.format)(config, spec.seq, spec.focus, spec.angle, target,
+                                        spec.series, spec.series_index, spec.position)
 
 
 def advance(state: FormatState, spec: Spec) -> None:
@@ -198,7 +242,7 @@ def advance(state: FormatState, spec: Spec) -> None:
     if spec.position:
         assert state.series is not None
         state.series["position"] = spec.position
-        if spec.position >= SERIES_LENGTH:
+        if spec.position >= series_length(spec.format):
             # The sixteen are done: one post of something else, then the next subject.
             state.series = None
             state.between = True

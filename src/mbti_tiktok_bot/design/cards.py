@@ -1,4 +1,4 @@
-"""The six slide layouts, drawn in whichever look the post was given.
+"""The slide layouts, drawn in whichever look the post was given.
 
 Every layout lays its copy out first, from the bottom of the safe area up, and
 gives the character whatever height is left above it. That is what keeps a
@@ -116,9 +116,22 @@ def cover(look: Look, post: Post, card: Card) -> Layers:
 
     region = (SAFE_LEFT - 40, SAFE_TOP + row + ROW_GAP, SAFE_RIGHT + 40, top_of_type - 44)
 
-    if post.format in ("gallery", "ranking"):
+    if len(card.types) > 2:
         _grid_of_sixteen(look, character, draw, card.types, region)
-    elif post.format == "manual":
+    elif len(card.types) == 2 and post.format == "versus":
+        # Two types that get mistaken for each other, facing each other.
+        left, right = card.types
+        half = (region[2] - region[0]) / 2
+        names_top = region[3] - 76
+        for index, mbti in enumerate((left, right)):
+            box = (region[0] + index * half, region[1] + 30, region[0] + (index + 1) * half, names_top - 16)
+            character.alpha_composite(look.portrait(mbti, box, index=index))
+            T.draw(draw, T.single(mbti, "display", 72, tracking_em=0.02), region[0] + index * half, names_top,
+                   look.rgba("accent"), align="center", box_width=half)
+        mark = T.single("VS", "display", 96)
+        T.draw(draw, mark, region[0] + half - 90, (region[1] + names_top) / 2 - 48, look.rgba("accent"),
+               align="center", box_width=180, stroke=8, stroke_fill=look.surface)
+    elif post.format in ("manual", "remedy"):
         mbti = post.focus
         look.type_mark(accent, canvas(accent, look.ctx), mbti, region[1] + 20, size=560)
         character.alpha_composite(look.portrait(mbti, region))
@@ -281,4 +294,233 @@ def closer(look: Look, post: Post, card: Card) -> Layers:
 
 # "grid" is gone: a ranking put its bottom twelve four to a slide, which left
 # most of the sixteen types without a picture of their own.
-LAYOUTS = {"cover": cover, "entry": entry, "section": section, "pair": pair, "closer": closer}
+# --- a line, and four types it could have come from ------------------------------
+
+
+def quiz(look: Look, post: Post, card: Card) -> Layers:
+    """The quote, big, with four types to choose from. No character: the whole
+    point is that you cannot see whose line it is yet."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, card.label, f"Q{card.number} / {card.total}")
+
+    choices = [look.chip(mbti, size=44) for mbti in card.chips]
+    choice_height = chip_flow(None, choices, 0, 0, SAFE_WIDTH, draw=False)
+    choices_top = SAFE_BOTTOM - choice_height
+    ask = look.body("どのタイプの一言？", SAFE_WIDTH, 80, base=40, minimum=32)
+    ask_top = choices_top - 40 - ask.height
+
+    quote = look.headline(f"「{card.title}」", SAFE_WIDTH, 620, 132, 64, lines=4)
+    quote_top = SAFE_TOP + row + ROW_GAP + max((ask_top - (SAFE_TOP + row + ROW_GAP) - quote.height) / 2, 0)
+    look.panel(accent, (SAFE_LEFT - 16, quote_top - 48, SAFE_RIGHT + 16, quote_top + quote.height + 48))
+    look.draw_headline(draw, text, quote, SAFE_LEFT, quote_top)
+    look.draw_body(draw, ask, SAFE_LEFT, ask_top, align="center", width=SAFE_WIDTH)
+    chip_flow(draw, choices, SAFE_LEFT, choices_top, SAFE_WIDTH, align="center")
+    return Layers(bg, accent, character, text)
+
+
+def answer(look: Look, post: Post, card: Card) -> Layers:
+    """The reveal: the type, its character, and why the line is theirs."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, f"「{card.label}」", f"A{card.number} / {card.total}")
+
+    body = look.body(card.body, SAFE_WIDTH, 260, base=44, minimum=32)
+    body_top = SAFE_BOTTOM - body.height
+    name_top = body_top - 40 - 120
+    region = (SAFE_LEFT - 40, SAFE_TOP + row + ROW_GAP, SAFE_RIGHT + 40, name_top - 20)
+
+    mbti = card.title
+    look.type_mark(accent, canvas(accent, look.ctx), mbti, region[1] + 10, size=520)
+    character.alpha_composite(look.portrait(mbti, region))
+    look.type_name(draw, mbti, _archetype(mbti), SAFE_LEFT, name_top, size=110, align="center", width=SAFE_WIDTH)
+    look.draw_body(draw, body, SAFE_LEFT, body_top, align="center", width=SAFE_WIDTH)
+    return Layers(bg, accent, character, text)
+
+
+# --- the reply, as it would arrive ------------------------------------------------
+
+
+def chat(look: Look, post: Post, card: Card) -> Layers:
+    """Two bubbles: what was sent, and what this type sends back."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    adraw = canvas(accent, look.ctx)
+    row = _top_row(look, draw, post.title, f"{card.number:02d} / {card.total:02d}")
+    top = SAFE_TOP + row + ROW_GAP
+
+    note = look.body(card.body, SAFE_WIDTH, 160, base=38, minimum=30) if card.body else None
+    note_top = SAFE_BOTTOM - (note.height if note else 0)
+
+    incoming = look.body(card.label, SAFE_WIDTH * 0.62 - 56, 200, base=40, minimum=30)
+    reply = look.body(card.title, SAFE_WIDTH * 0.66 - 56, 300, base=44, minimum=32)
+    pad = 30
+    bubble_top = top + 150
+    left_bubble = (SAFE_LEFT, bubble_top, SAFE_LEFT + incoming.width + pad * 2, bubble_top + incoming.height + pad * 2)
+    look.bubble(accent, left_bubble, incoming=True)
+    look.draw_body(draw, incoming, left_bubble[0] + pad, left_bubble[1] + pad, color=look.bubble_ink(True))
+
+    reply_top = left_bubble[3] + 56
+    right_bubble = (SAFE_RIGHT - reply.width - pad * 2, reply_top, SAFE_RIGHT, reply_top + reply.height + pad * 2)
+    look.bubble(accent, right_bubble, incoming=False)
+    look.draw_body(draw, reply, right_bubble[0] + pad, right_bubble[1] + pad, color=look.bubble_ink(False))
+
+    # The sender, standing beside their own message.
+    mbti = card.types[0]
+    art_top = right_bubble[3] + 24
+    if note_top - 24 - art_top >= 200:
+        box = (SAFE_LEFT, art_top, SAFE_LEFT + 420, note_top - 24)
+        character.alpha_composite(look.portrait(mbti, box))
+    look.type_name(draw, mbti, _archetype(mbti), SAFE_LEFT, top, size=104)
+    if note:
+        look.draw_body(draw, note, SAFE_LEFT, note_top)
+    return Layers(bg, accent, character, text)
+
+
+# --- the one line that ends it -----------------------------------------------------
+
+
+def nogo(look: Look, post: Post, card: Card) -> Layers:
+    """The phrase in quotes, marked as the thing not to say, and who it lands on."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, post.title, f"{card.number:02d} / {card.total:02d}")
+    top = SAFE_TOP + row + ROW_GAP
+
+    body = look.body(card.body, SAFE_WIDTH, 240, base=42, minimum=32)
+    body_top = SAFE_BOTTOM - body.height
+    phrase = look.headline(f"「{card.title}」", SAFE_WIDTH, 380, 124, 60, lines=3)
+    phrase_top = body_top - 48 - phrase.height
+    name_top = phrase_top - 36 - 104
+
+    region = (SAFE_LEFT - 40, top, SAFE_RIGHT + 40, name_top - 16)
+    mbti = card.types[0]
+    character.alpha_composite(look.portrait(mbti, region))
+    look.type_name(draw, mbti, _archetype(mbti), SAFE_LEFT, name_top, size=104)
+    look.draw_headline(draw, text, phrase, SAFE_LEFT, phrase_top, color=look.rgba("caution"))
+    look.draw_body(draw, body, SAFE_LEFT, body_top)
+    return Layers(bg, accent, character, text)
+
+
+# --- four roles, sixteen types -------------------------------------------------------
+
+
+def role_map(look: Look, post: Post, card: Card) -> Layers:
+    """The whole cast placed in four quarters, so a viewer can find themselves."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    adraw = canvas(accent, look.ctx)
+    row = _top_row(look, draw, card.label, "")
+    top = SAFE_TOP + row + ROW_GAP
+
+    heading = look.headline(card.title, SAFE_WIDTH, 200, 88, 52, lines=2)
+    look.draw_headline(draw, text, heading, SAFE_LEFT, top)
+    board_top = top + heading.height + 36
+    board = (SAFE_LEFT - 24, board_top, SAFE_RIGHT + 24, SAFE_BOTTOM)
+    half_w = (board[2] - board[0]) / 2
+    half_h = (board[3] - board[1]) / 2
+
+    for index, item in enumerate(card.items[:4]):
+        col, quarter_row = index % 2, index // 2
+        x0 = board[0] + col * half_w
+        y0 = board[1] + quarter_row * half_h
+        look.panel(accent, (x0 + 8, y0 + 8, x0 + half_w - 8, y0 + half_h - 8))
+        name = T.fit(item.title, "jp-black", half_w - 48, 70, 38, 26, max_lines=2)
+        T.draw(draw, name, x0 + 24, y0 + 24, look.rgba("accent"))
+        types = card.types[index * 4:(index + 1) * 4]
+        cell_w = (half_w - 48) / 4
+        art_top = y0 + 24 + name.height + 12
+        art_bottom = y0 + half_h - 44
+        for slot, mbti in enumerate(types):
+            box = (x0 + 24 + slot * cell_w, art_top, x0 + 24 + (slot + 1) * cell_w, art_bottom)
+            character.alpha_composite(look.portrait(mbti, box, index=slot, small=True))
+            T.draw(draw, T.single(mbti, "display", 30, tracking_em=0.02), box[0], art_bottom + 4,
+                   look.sub, align="center", box_width=cell_w)
+    return Layers(bg, accent, character, text, order=("background", "accent", "character", "text"))
+
+
+def role(look: Look, post: Post, card: Card) -> Layers:
+    """One role: its four types side by side, and what they actually do."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, card.label, f"{card.number} / {card.total}")
+    top = SAFE_TOP + row + ROW_GAP
+
+    numeral = look.numeral(accent, canvas(accent, look.ctx), str(card.number), SAFE_LEFT, top, 180)
+    title = look.headline(card.title, SAFE_WIDTH, 240, 116, 60, lines=2)
+    title_top = top + numeral.height + 30
+    look.draw_headline(draw, text, title, SAFE_LEFT, title_top)
+
+    panel_top = _panelled_copy(look, accent, draw, card, SAFE_BOTTOM)
+    names_top = panel_top - 40 - 64
+    region = (SAFE_LEFT - 40, title_top + title.height + 24, SAFE_RIGHT + 40, names_top - 12)
+    width = (region[2] - region[0]) / max(len(card.types), 1)
+    for index, mbti in enumerate(card.types):
+        box = (region[0] + index * width, region[1], region[0] + (index + 1) * width, region[3])
+        character.alpha_composite(look.portrait(mbti, box, index=index, small=True))
+        T.draw(draw, T.single(mbti, "display", 52, tracking_em=0.02), box[0], names_top,
+               look.rgba("accent"), align="center", box_width=width)
+    return Layers(bg, accent, character, text)
+
+
+# --- a prescription ------------------------------------------------------------------
+
+
+def dose(look: Look, post: Post, card: Card) -> Layers:
+    """One step of the day: when, what to do, and why it works on this type."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, post.title, f"{card.number} / {card.total}")
+    top = SAFE_TOP + row + ROW_GAP
+
+    why = look.body(card.body, SAFE_WIDTH, 220, base=42, minimum=32)
+    why_top = SAFE_BOTTOM - why.height
+    action = look.headline(card.title, SAFE_WIDTH, 320, 116, 60, lines=3)
+    action_top = why_top - 44 - action.height
+    step = look.headline(card.label, SAFE_WIDTH * 0.7, 120, 60, 36, lines=1)
+    step_top = action_top - 28 - step.height
+
+    numeral = look.numeral(accent, canvas(accent, look.ctx), f"{card.number:02d}", SAFE_LEFT, top, 190)
+    region = (SAFE_LEFT + 200, top - 20, SAFE_RIGHT + 60, step_top - 24)
+    character.alpha_composite(look.portrait(post.focus, region))
+    look.draw_headline(draw, text, step, SAFE_LEFT, step_top, color=look.rgba("accent"))
+    look.draw_headline(draw, text, action, SAFE_LEFT, action_top)
+    look.draw_body(draw, why, SAFE_LEFT, why_top)
+    return Layers(bg, accent, character, text, order=("background", "character", "accent", "text"))
+
+
+# --- two types, one question ----------------------------------------------------------
+
+
+def versus(look: Look, post: Post, card: Card) -> Layers:
+    """The same question put to both, side by side, so the difference is the slide."""
+    bg, accent, character, text = _start(look)
+    draw = canvas(text, look.ctx)
+    row = _top_row(look, draw, card.label, f"{card.number} / {card.total}")
+    top = SAFE_TOP + row + ROW_GAP
+
+    axis = look.headline(card.title, SAFE_WIDTH, 160, 104, 56, lines=1)
+    look.draw_headline(draw, text, axis, SAFE_LEFT, top, align="center", width=SAFE_WIDTH)
+    board_top = top + axis.height + 36
+    half = SAFE_WIDTH / 2
+    pad = 22
+    for index, item in enumerate(card.items[:2]):
+        x0 = SAFE_LEFT + index * half
+        column = (x0 + (pad if index else 0), board_top, x0 + half - (0 if index else pad), SAFE_BOTTOM)
+        body = look.body(item.body, column[2] - column[0] - pad * 2, 420, base=40, minimum=28)
+        body_top = SAFE_BOTTOM - body.height
+        look.panel(accent, (column[0], body_top - pad, column[2], SAFE_BOTTOM))
+        look.draw_body(draw, body, column[0] + pad, body_top)
+        name_top = body_top - 40 - 64
+        T.draw(draw, T.single(item.type, "display", 64, tracking_em=0.02), column[0], name_top,
+               look.rgba("accent"), align="center", box_width=column[2] - column[0])
+        box = (column[0], board_top + 10, column[2], name_top - 12)
+        character.alpha_composite(look.portrait(item.type, box, index=index))
+    return Layers(bg, accent, character, text)
+
+
+LAYOUTS = {
+    "cover": cover, "entry": entry, "section": section, "pair": pair, "closer": closer,
+    "quiz": quiz, "answer": answer, "chat": chat, "nogo": nogo,
+    "map": role_map, "role": role, "dose": dose, "versus": versus,
+}

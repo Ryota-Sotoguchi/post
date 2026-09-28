@@ -1,9 +1,10 @@
 """The seed material for each format.
 
-Gallery and ranking posts each use up one topic; when the seeds run out the
-planner asks the LLM for more and keeps them in the format state. Manual and
-compat posts walk the sixteen types, and each full lap moves to the next angle,
-so the same type comes back as 恋愛編, then 友達編, and so on.
+A one-off post uses up one topic; when the seeds run out the planner asks the
+LLM for more and keeps them in the format state. A series walks its subjects -
+the sixteen types, or the eight pairs that get mistaken for each other - and
+each full lap moves to the next angle, so a type comes back as 恋愛編, then
+友達編, and so on.
 """
 
 from __future__ import annotations
@@ -54,6 +55,78 @@ RANKING_TOPICS = (
     "実は一番繊細なタイプ",
 )
 
+# 「このセリフ、どのタイプ？」: a line anyone has heard, with four plausible
+# answers, so the guess is a real one.
+QUIZ_TOPICS = (
+    "LINEでよく出る一言",
+    "断る時の一言",
+    "怒ってる時の一言",
+    "照れ隠しの一言",
+    "疲れてる時の一言",
+    "デート中の一言",
+    "職場で出る一言",
+    "落ち込んでる人にかける一言",
+    "褒める時の一言",
+    "別れ際の一言",
+)
+
+# 「〇〇と送られた時の返信」: the reply itself is the value - it can be copied.
+CHAT_TOPICS = (
+    "急に『今日空いてる？』と送られた時",
+    "『ちょっと相談がある』と送られた時",
+    "既読無視した後に催促が来た時",
+    "『怒ってる？』と聞かれた時",
+    "デートに誘われた時",
+    "『今から行っていい？』と言われた時",
+    "落ち込んでる友達から連絡が来た時",
+    "『好きかも』と言われた時",
+    "予定をドタキャンされた時",
+    "久しぶりの相手から連絡が来た時",
+)
+
+# 「言われたら一発で冷める一言」: what not to say, which is remembered longer
+# than what to say.
+LANDMINE_TOPICS = (
+    "言われたら一発で冷める一言",
+    "地雷を踏む褒め方",
+    "仕事で言われるとやる気を失う一言",
+    "恋人に言われたら終わる一言",
+    "励ましのつもりで刺さる一言",
+    "家族に言われるときつい一言",
+    "友達に言われて距離を置く一言",
+    "初対面で言ってはいけない一言",
+)
+
+# 「この場面での役割」: four roles, four types each, so everyone can place
+# themselves and their friends.
+ROLE_TOPICS = (
+    "飲み会",
+    "グループ旅行の計画",
+    "職場のチーム",
+    "推し活の現場",
+    "文化祭の準備",
+    "急なトラブル対応",
+    "友達グループの日常",
+    "合コン",
+)
+
+# Pairs that get mistaken for each other, and that people search as a pair.
+VERSUS_PAIRS = (
+    ("INFP", "INFJ"),
+    ("ENFP", "ESFP"),
+    ("INTJ", "INTP"),
+    ("ENTJ", "ESTJ"),
+    ("ISFJ", "ISTJ"),
+    ("ENFJ", "ESFJ"),
+    ("ISTP", "ISFP"),
+    ("ENTP", "ESTP"),
+)
+VERSUS_AXES = ("決め方", "沈黙の意味", "疲れる相手", "好意の出し方", "本音が出る時")
+
+# A prescription: what to do, on the day it is needed.
+REMEDY_ANGLES = ("疲れた日", "落ち込んだ日", "焦ってる日", "人に会いたくない日")
+REMEDY_STEPS = ("まずこれをやめる", "最初の5分", "戻ってくる合図", "明日に残さないこと")
+
 MANUAL_ANGLES = ("基本", "恋愛", "友達", "仕事")
 COMPAT_ANGLES = ("恋愛", "友達", "仕事")
 
@@ -92,8 +165,14 @@ BASE_HASHTAGS = ("#MBTI", "#mbti診断", "#16personalities", "#性格診断")
 FORMAT_HASHTAGS = {
     "gallery": ("#16タイプ", "#あるある"),
     "ranking": ("#ランキング", "#16タイプ"),
+    "quiz": ("#心理テスト", "#クイズ", "#16タイプ"),
+    "chat": ("#LINE", "#返信", "#16タイプ"),
+    "landmine": ("#地雷", "#あるある", "#16タイプ"),
+    "roles": ("#役割", "#グループ", "#16タイプ"),
     "manual": ("#取扱説明書",),
     "compat": ("#相性", "#相性診断"),
+    "remedy": ("#処方箋", "#メンタルケア"),
+    "versus": ("#違い", "#どっち"),
 }
 ANGLE_HASHTAGS = {"恋愛": "#恋愛", "友達": "#友達", "仕事": "#仕事"}
 
@@ -118,3 +197,27 @@ def manual_title(mbti: str, angle: str) -> str:
 
 def compat_title(mbti: str, angle: str) -> str:
     return f"{mbti}と相性がいいタイプ【{angle}】"
+
+
+def quiz_title(topic: str) -> str:
+    return f"{topic}、どのタイプ？"
+
+
+def chat_title(topic: str) -> str:
+    return f"{topic}の返信16タイプ"
+
+
+def landmine_title(topic: str) -> str:
+    return f"MBTI別・{topic}"
+
+
+def roles_title(topic: str) -> str:
+    return f"{topic}での役割16タイプ"
+
+
+def remedy_title(mbti: str, angle: str) -> str:
+    return f"{mbti}の{angle}の処方箋"
+
+
+def versus_title(pair: tuple[str, str]) -> str:
+    return f"{pair[0]}と{pair[1]}、どっち？"

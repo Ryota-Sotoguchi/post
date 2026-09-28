@@ -347,3 +347,341 @@ def compat(config: AppConfig, seq: int, mbti: str, angle: str, target: date,
 
 def dumps(post: Post) -> str:
     return json.dumps(post.to_dict(), ensure_ascii=False, indent=2)
+
+
+# --- a line, and four types it could have come from --------------------------
+
+
+def _quiz_prompt(topic: str) -> str:
+    return (
+        f"お題:「{topic}」\n"
+        "MBTIのセリフ当てクイズを6問作ってください。\n"
+        "- quote: そのタイプが言いがちな一言（15〜28字）。誰の発言か当てられる具体性を持たせる\n"
+        "- type: 正解のタイプ\n"
+        "- others: 紛らわしい不正解3つ。正解と同じ傾向を持つタイプを選ぶ\n"
+        "- why: 正解の理由（30〜45字）。「だからこのセリフが出る」と腑に落ちる書き方で\n"
+        "- 6問で正解が重複しないこと\n"
+        "- hook: 表紙の一文（25〜40字）。何問正解できるか試したくなるように\n"
+        '形式: {"hook": "...", "questions": [{"quote": "...", "type": "INTJ", "others": ["INTP", "ENTJ", "ISTJ"], "why": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes()}"
+    )
+
+
+def _quiz_questions(data: dict | None) -> list[dict] | None:
+    raw = (data or {}).get("questions")
+    if not isinstance(raw, list) or len(raw) < 4:
+        return None
+    questions, answered = [], set()
+    for entry in raw[:6]:
+        if not isinstance(entry, dict):
+            return None
+        answer = str(entry.get("type", "")).strip().upper()
+        others = [str(other).strip().upper() for other in entry.get("others", [])]
+        others = [other for other in others if other in TYPES and other != answer]
+        if answer not in TYPES or answer in answered or len(others) < 3 or not entry.get("quote"):
+            return None
+        answered.add(answer)
+        questions.append({
+            "quote": _clip(entry["quote"], 30),
+            "type": answer,
+            "others": others[:3],
+            "why": _clip(entry.get("why"), BODY_LIMIT),
+        })
+    return questions
+
+
+def _quiz_fallback(topic: str) -> list[dict]:
+    picked = list(TYPES[:6])
+    return [
+        {"quote": _clip(TYPE_DATA[mbti]["line"], 30),
+         "type": mbti,
+         "others": [other for other in TYPES if other != mbti][:3],
+         "why": "・".join(TYPE_DATA[mbti]["traits"])}
+        for mbti in picked
+    ]
+
+
+def quiz(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
+    data = _ask(config, _quiz_prompt(topic))
+    questions = _quiz_questions(data)
+    source = "llm"
+    if questions is None:
+        questions, source = _quiz_fallback(topic), "template"
+    title = K.quiz_title(topic)
+    hook = _clip((data or {}).get("hook") or f"{topic}、何問当てられる？", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["quiz"], types=TYPES)]
+    for index, question in enumerate(questions, start=1):
+        choices = sorted([question["type"], *question["others"]])
+        cards.append(Card("quiz", title=question["quote"], label=topic, number=index, total=len(questions),
+                          chips=tuple(choices)))
+        cards.append(Card("answer", title=question["type"], body=question["why"], label=question["quote"],
+                          number=index, total=len(questions), types=(question["type"],)))
+    cards.append(Card("closer", title="何問当たった？", body="コメントで点数を教えて。", 
+                      types=tuple(question["type"] for question in questions[:4])))
+    return Post(seq, "quiz", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
+                hashtags=_hashtags("quiz", tuple(question["type"] for question in questions[:3])),
+                cards=cards, source=source)
+
+
+# --- the reply each type would send ------------------------------------------
+
+
+def _chat_prompt(topic: str) -> str:
+    return (
+        f"場面:「{topic}」\n"
+        "16タイプそれぞれが実際に送りそうな返信を書いてください。\n"
+        "- message: 相手から届いた文面（15〜25字）。全タイプ共通の1つを最初に決める\n"
+        "- reply: そのタイプの返信（20〜40字）。LINEの文面そのままで、口調や絵文字の有無まで差をつける\n"
+        "- note: その返信の裏にある心理（20〜32字）\n"
+        "- 16タイプすべてを1回ずつ\n"
+        "- hook: 表紙の一文（25〜40字）\n"
+        '形式: {"hook": "...", "message": "...", "replies": [{"type": "INTJ", "reply": "...", "note": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes()}"
+    )
+
+
+def _chat_replies(data: dict | None) -> dict[str, Item] | None:
+    raw = (data or {}).get("replies")
+    if not isinstance(raw, list):
+        return None
+    found: dict[str, Item] = {}
+    for entry in raw:
+        if not isinstance(entry, dict):
+            return None
+        mbti = str(entry.get("type", "")).strip().upper()
+        if mbti not in TYPES or mbti in found or not entry.get("reply"):
+            return None
+        found[mbti] = Item(mbti, _clip(entry["reply"], 44), _clip(entry.get("note"), 36))
+    return found if len(found) == len(TYPES) else None
+
+
+def chat(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
+    data = _ask(config, _chat_prompt(topic))
+    replies = _chat_replies(data)
+    source = "llm"
+    if replies is None:
+        replies = {mbti: Item(mbti, _clip(TYPE_DATA[mbti]["line"], 44), "・".join(TYPE_DATA[mbti]["traits"]))
+                   for mbti in TYPES}
+        source = "template"
+    message = _clip((data or {}).get("message") or topic, 28)
+    title = K.chat_title(topic)
+    hook = _clip((data or {}).get("hook") or f"{topic}、あなたはどう返す？", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["chat"], types=TYPES)]
+    for index, mbti in enumerate(TYPES, start=1):
+        cards.append(Card("chat", title=replies[mbti].title, body=replies[mbti].body, label=message,
+                          number=index, total=len(TYPES), items=(replies[mbti],), types=(mbti,)))
+    cards.append(Card("closer", title="あなたの返信はどれに近い？", body="そのままコピーして使ってね。", types=TYPES))
+    return Post(seq, "chat", target.isoformat(), title, hook, topic=topic, series=series, series_index=series_index,
+                hashtags=_hashtags("chat", K.POPULAR_TYPES), cards=cards, source=source)
+
+
+# --- the one line that ends it -----------------------------------------------
+
+
+def _landmine_prompt(topic: str) -> str:
+    return (
+        f"お題:「{topic}」\n"
+        "16タイプそれぞれの地雷になる一言を書いてください。\n"
+        "- phrase: 実際に言われる一言（12〜22字）。カギカッコの中身だけ\n"
+        "- why: なぜ刺さるのか（30〜45字）。そのタイプが大事にしているものに触れる\n"
+        "- 16タイプすべてを1回ずつ。悪口ではなく「すれ違いの原因」として書く\n"
+        "- hook: 表紙の一文（25〜40字）\n"
+        '形式: {"hook": "...", "entries": [{"type": "INTJ", "phrase": "...", "why": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes()}"
+    )
+
+
+def _landmine_entries(data: dict | None) -> dict[str, Item] | None:
+    raw = (data or {}).get("entries")
+    if not isinstance(raw, list):
+        return None
+    found: dict[str, Item] = {}
+    for entry in raw:
+        if not isinstance(entry, dict):
+            return None
+        mbti = str(entry.get("type", "")).strip().upper()
+        phrase = _clip(entry.get("phrase"), 24).strip("「」")
+        if mbti not in TYPES or mbti in found or not phrase:
+            return None
+        found[mbti] = Item(mbti, phrase, _clip(entry.get("why"), BODY_LIMIT))
+    return found if len(found) == len(TYPES) else None
+
+
+def landmine(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
+    data = _ask(config, _landmine_prompt(topic))
+    entries = _landmine_entries(data)
+    source = "llm"
+    if entries is None:
+        entries = {mbti: Item(mbti, _clip(TYPE_DATA[mbti]["stress"], 24), "・".join(TYPE_DATA[mbti]["traits"]))
+                   for mbti in TYPES}
+        source = "template"
+    title = K.landmine_title(topic)
+    hook = _clip((data or {}).get("hook") or f"{topic}、心当たりある？", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["landmine"], types=TYPES)]
+    for index, mbti in enumerate(TYPES, start=1):
+        cards.append(Card("nogo", title=entries[mbti].title, body=entries[mbti].body, label=topic,
+                          number=index, total=len(TYPES), items=(entries[mbti],), types=(mbti,)))
+    cards.append(Card("closer", title="言われたことある？", body="コメントで教えて。心当たりがある人に送ってね。", types=TYPES))
+    return Post(seq, "landmine", target.isoformat(), title, hook, topic=topic, series=series,
+                series_index=series_index, hashtags=_hashtags("landmine", K.POPULAR_TYPES),
+                cards=cards, source=source)
+
+
+# --- who each type turns into in a group -------------------------------------
+
+
+def _roles_prompt(topic: str) -> str:
+    return (
+        f"場面:「{topic}」\n"
+        "16タイプを4つの役割に、4タイプずつ分けてください。\n"
+        "- name: 役割の名前（6〜12字）。「仕切り役」のように一言で\n"
+        "- types: そこに入る4タイプ\n"
+        "- body: その役割の動き方（35〜55字）。その場面で実際に何をしているか\n"
+        "- 16タイプを重複なく4×4に分けきること\n"
+        "- hook: 表紙の一文（25〜40字）。自分と友達を当てはめたくなるように\n"
+        '形式: {"hook": "...", "roles": [{"name": "...", "types": ["INTJ", "ENTJ", "INTP", "ENTP"], "body": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes()}"
+    )
+
+
+def _roles(data: dict | None) -> list[dict] | None:
+    raw = (data or {}).get("roles")
+    if not isinstance(raw, list) or len(raw) != 4:
+        return None
+    seen: set[str] = set()
+    roles = []
+    for entry in raw:
+        if not isinstance(entry, dict) or not entry.get("name"):
+            return None
+        types = [str(mbti).strip().upper() for mbti in entry.get("types", [])]
+        if len(types) != 4 or any(mbti not in TYPES or mbti in seen for mbti in types):
+            return None
+        seen.update(types)
+        roles.append({"name": _clip(entry["name"], 12), "types": types, "body": _clip(entry.get("body"), BODY_LIMIT)})
+    return roles if len(seen) == len(TYPES) else None
+
+
+def _roles_fallback() -> list[dict]:
+    # The four groups the catalogue already sorts the types into.
+    from mbti_tiktok_bot.catalog import TYPE_DATA as DATA
+
+    names = {"分析家": "考えて動かす役", "外交官": "空気を整える役", "番人": "支えて回す役", "探検家": "場を沸かせる役"}
+    roles = []
+    for group, name in names.items():
+        types = [mbti for mbti in TYPES if DATA[mbti]["group"] == group]
+        roles.append({"name": name, "types": types[:4],
+                      "body": "・".join(DATA[types[0]]["traits"])})
+    return roles
+
+
+def roles(config: AppConfig, seq: int, topic: str, target: date, series: str = "", series_index: int = 0) -> Post:
+    data = _ask(config, _roles_prompt(topic))
+    found = _roles(data)
+    source = "llm"
+    if found is None:
+        found, source = _roles_fallback(), "template"
+    title = K.roles_title(topic)
+    hook = _clip((data or {}).get("hook") or f"{topic}、あなたはどの役割？", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["roles"], types=TYPES)]
+    cards.append(Card("map", title=title, label=topic, total=4,
+                      items=tuple(Item(role["types"][0], role["name"]) for role in found),
+                      types=tuple(mbti for role in found for mbti in role["types"])))
+    for index, role in enumerate(found, start=1):
+        cards.append(Card("role", title=role["name"], body=role["body"], label=topic, number=index, total=4,
+                          types=tuple(role["types"])))
+    cards.append(Card("closer", title="あなたはどの役割だった？", body="友達のタイプと並べてみて。", types=TYPES))
+    return Post(seq, "roles", target.isoformat(), title, hook, topic=topic, series=series,
+                series_index=series_index, hashtags=_hashtags("roles", K.POPULAR_TYPES), cards=cards, source=source)
+
+
+# --- what to do today, for one type ------------------------------------------
+
+
+def _remedy_prompt(mbti: str, angle: str) -> str:
+    steps = K.REMEDY_STEPS
+    return (
+        f"「{K.remedy_title(mbti, angle)}」を書いてください。\n"
+        f"{mbti}が{angle}に、その日のうちに実行できる処方箋です。\n"
+        f"手順はこの順番で{len(steps)}つ: {'、'.join(steps)}\n"
+        "- do: 実際の行動（15〜26字）。「〇〇する」の形で、今日できる粒度\n"
+        "- why: そのタイプに効く理由（30〜45字）\n"
+        "- hook: 表紙の一文（25〜40字）。読んだ人が自分のことだと思うように\n"
+        '形式: {"hook": "...", "doses": [{"do": "...", "why": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes((mbti,))}"
+    )
+
+
+def remedy(config: AppConfig, seq: int, mbti: str, angle: str, target: date,
+           series: str = "", series_index: int = 0, position: int = 0) -> Post:
+    data = _ask(config, _remedy_prompt(mbti, angle))
+    steps = K.REMEDY_STEPS
+    raw = (data or {}).get("doses")
+    doses: list[tuple[str, str]] = []
+    if isinstance(raw, list) and len(raw) >= len(steps):
+        for entry in raw[: len(steps)]:
+            if not isinstance(entry, dict) or not entry.get("do"):
+                doses = []
+                break
+            doses.append((_clip(entry["do"], 28), _clip(entry.get("why"), BODY_LIMIT)))
+    source = "llm"
+    if not doses:
+        data_for = TYPE_DATA[mbti]
+        doses = [(_clip(text, 28), "・".join(data_for["traits"]))
+                 for text in (data_for["stress"], data_for["攻略"], data_for["friend"], data_for["line"])]
+        source = "template"
+    title = K.remedy_title(mbti, angle)
+    hook = _clip((data or {}).get("hook") or f"{mbti}の{angle}、気合いより順番。", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["remedy"], types=(mbti,))]
+    for index, ((step, (action, why))) in enumerate(zip(steps, doses), start=1):
+        cards.append(Card("dose", title=action, body=why, label=step, number=index, total=len(steps), types=(mbti,)))
+    cards.append(Card("closer", title=f"今日の{mbti}に効く順番", body="保存して、しんどい日に開いてね。", types=(mbti,)))
+    return Post(seq, "remedy", target.isoformat(), title, hook, focus=mbti, angle=angle,
+                series=series, series_index=series_index, series_position=position,
+                hashtags=_hashtags("remedy", (mbti,), angle), cards=cards, source=source)
+
+
+# --- two types that get mistaken for each other -------------------------------
+
+
+def _versus_prompt(pair: tuple[str, str]) -> str:
+    left, right = pair
+    return (
+        f"「{left}と{right}の違い」を書いてください。似ていて見分けがつかない2タイプです。\n"
+        f"観点はこの順番で{len(K.VERSUS_AXES)}つ: {'、'.join(K.VERSUS_AXES)}\n"
+        f"- left: {left}の場合（20〜32字）\n"
+        f"- right: {right}の場合（20〜32字）\n"
+        "- 同じ観点で並べたときに違いがはっきり出るように、対になる書き方をする\n"
+        "- hook: 表紙の一文（25〜40字）。どちらか分からない人が確かめたくなるように\n"
+        '形式: {"hook": "...", "axes": [{"axis": "決め方", "left": "...", "right": "..."}]}\n'
+        f"タイプの参考情報:\n{_type_notes(pair)}"
+    )
+
+
+def versus(config: AppConfig, seq: int, pair: tuple[str, str], target: date,
+           series: str = "", series_index: int = 0, position: int = 0) -> Post:
+    left, right = pair
+    data = _ask(config, _versus_prompt(pair))
+    raw = (data or {}).get("axes")
+    axes: list[tuple[str, str, str]] = []
+    if isinstance(raw, list) and len(raw) >= len(K.VERSUS_AXES) - 1:
+        for index, entry in enumerate(raw[: len(K.VERSUS_AXES)]):
+            if not isinstance(entry, dict) or not entry.get("left") or not entry.get("right"):
+                axes = []
+                break
+            axes.append((_clip(entry.get("axis") or K.VERSUS_AXES[index], 12),
+                         _clip(entry["left"], 36), _clip(entry["right"], 36)))
+    source = "llm"
+    if not axes:
+        axes = [(axis, _clip(TYPE_DATA[left][key], 36), _clip(TYPE_DATA[right][key], 36))
+                for axis, key in zip(K.VERSUS_AXES, ("攻略", "stress", "friend", "love", "line"))]
+        source = "template"
+    title = K.versus_title(pair)
+    hook = _clip((data or {}).get("hook") or f"{left}と{right}、自分がどっちか分かる？", 60)
+    cards = [Card("cover", title=title, body=hook, label=FORMAT_LABELS["versus"], types=pair)]
+    for index, (axis, a, b) in enumerate(axes, start=1):
+        cards.append(Card("versus", title=axis, label=title, number=index, total=len(axes),
+                          items=(Item(left, body=a), Item(right, body=b)), types=pair))
+    cards.append(Card("closer", title="あなたはどっちだった？", body="迷った人はコメントで聞いて。", types=pair))
+    return Post(seq, "versus", target.isoformat(), title, hook, focus=left, angle=right,
+                series=series, series_index=series_index, series_position=position,
+                hashtags=_hashtags("versus", pair), cards=cards, source=source)

@@ -429,3 +429,78 @@ class NoRoomTests(unittest.TestCase):
         # And the size just above it draws.
         figure, size = subject(ctx, "INTJ", MIN_FIGURE)
         self.assertEqual(size[1], MIN_FIGURE)
+
+
+class NewFormatTests(unittest.TestCase):
+    """The six formats added beside the first four, written from type data."""
+
+    def setUp(self) -> None:
+        self.temp = tempfile.TemporaryDirectory()
+        self.config = _config(Path(self.temp.name))
+        self.types = tuple(MBTI_POST_ORDER)
+
+    def tearDown(self) -> None:
+        self.temp.cleanup()
+
+    def test_a_quiz_asks_and_then_answers(self) -> None:
+        post = writer.quiz(self.config, 1, "LINEでよく出る一言", TARGET)
+        kinds = [card.kind for card in post.cards]
+        self.assertEqual(kinds[0], "cover")
+        self.assertEqual(kinds[-1], "closer")
+        questions = [card for card in post.cards if card.kind == "quiz"]
+        answers = [card for card in post.cards if card.kind == "answer"]
+        self.assertEqual(len(questions), len(answers))
+        for question, answer in zip(questions, answers):
+            # Four choices, and the answer is among them.
+            self.assertEqual(len(question.chips), 4)
+            self.assertIn(answer.title, question.chips)
+            self.assertEqual(answer.types, (answer.title,))
+
+    def test_a_reply_and_a_landmine_give_every_type_a_slide(self) -> None:
+        for post in (writer.chat(self.config, 2, "急に『今日空いてる？』と送られた時", TARGET),
+                     writer.landmine(self.config, 3, "言われたら一発で冷める一言", TARGET)):
+            verify(post, self.types)
+            self.assertEqual(len(post.cards), len(self.types) + 2)
+
+    def test_roles_split_all_sixteen_into_four_fours(self) -> None:
+        post = writer.roles(self.config, 4, "飲み会", TARGET)
+        verify(post, self.types)
+        roles = [card for card in post.cards if card.kind == "role"]
+        self.assertEqual(len(roles), 4)
+        self.assertEqual({len(card.types) for card in roles}, {4})
+        placed = [mbti for card in roles for mbti in card.types]
+        self.assertEqual(sorted(placed), sorted(self.types))
+
+    def test_a_remedy_is_one_type_in_four_steps(self) -> None:
+        post = writer.remedy(self.config, 5, "INFP", "疲れた日", TARGET)
+        doses = [card for card in post.cards if card.kind == "dose"]
+        self.assertEqual([card.label for card in doses], list(K.REMEDY_STEPS))
+        self.assertEqual({card.types for card in doses}, {("INFP",)})
+        self.assertEqual(post.focus, "INFP")
+
+    def test_a_versus_puts_the_same_question_to_both(self) -> None:
+        post = writer.versus(self.config, 6, ("INFP", "INFJ"), TARGET)
+        axes = [card for card in post.cards if card.kind == "versus"]
+        self.assertEqual([card.title for card in axes], list(K.VERSUS_AXES))
+        for card in axes:
+            self.assertEqual(tuple(item.type for item in card.items), ("INFP", "INFJ"))
+            self.assertTrue(all(item.body for item in card.items))
+
+    def test_every_format_draws(self) -> None:
+        posts = [
+            writer.quiz(self.config, 1, "断る時の一言", TARGET),
+            writer.chat(self.config, 2, "『怒ってる？』と聞かれた時", TARGET),
+            writer.landmine(self.config, 3, "恋人に言われたら終わる一言", TARGET),
+            writer.roles(self.config, 4, "飲み会", TARGET),
+            writer.remedy(self.config, 5, "INFP", "疲れた日", TARGET),
+            writer.versus(self.config, 6, ("INFP", "INFJ"), TARGET),
+        ]
+        for post in posts:
+            with self.subTest(format=post.format):
+                slides_dir = Path(self.temp.name) / post.format / "slides"
+                render_post(post, self.config, slides_dir, look="bubble")
+                slides = sorted(slides_dir.glob("slide_*.png"))
+                self.assertEqual(len(slides), len(post.cards))
+                with Image.open(slides[1]) as image:
+                    self.assertEqual(image.size, (1080, 1920))
+                    self.assertEqual(image.mode, "RGB")
