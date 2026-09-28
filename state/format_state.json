@@ -1,18 +1,18 @@
 {
-  "next_seq": 88,
+  "next_seq": 91,
   "series_count": 5,
   "series": {
     "format": "manual",
     "angle": "友達",
     "number": 5,
-    "position": 3
+    "position": 6
   },
   "between": false,
   "one_offs": 22,
   "cursors": {
     "gallery": 11,
     "ranking": 11,
-    "manual": 34,
+    "manual": 37,
     "compat": 31
   },
   "extra_topics": {
