@@ -1,22 +1,27 @@
 {
-  "next_seq": 91,
+  "next_seq": 101,
   "series_count": 5,
-  "series": {
-    "format": "manual",
-    "angle": "友達",
-    "number": 5,
-    "position": 6
-  },
-  "between": false,
+  "series": null,
+  "between": true,
   "one_offs": 22,
   "cursors": {
     "gallery": 11,
     "ranking": 11,
-    "manual": 37,
-    "compat": 31
+    "quiz": 0,
+    "chat": 0,
+    "landmine": 0,
+    "roles": 0,
+    "manual": 47,
+    "compat": 31,
+    "remedy": 0,
+    "versus": 0
   },
   "extra_topics": {
     "gallery": [],
-    "ranking": []
+    "ranking": [],
+    "quiz": [],
+    "chat": [],
+    "landmine": [],
+    "roles": []
   }
 }
