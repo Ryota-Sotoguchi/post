@@ -825,6 +825,48 @@
       "publish_id": "p_inbox_url~v2.7690913308605859846",
       "posted_at": "2026-09-29T11:12:32+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00050-compat",
+      "title": "ENFJと相性がいいタイプ【恋愛】",
+      "publish_id": "p_inbox_url~v2.7691510853656414209",
+      "posted_at": "2026-10-01T01:52:13+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00051-manual",
+      "title": "INTJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691506755309914119",
+      "posted_at": "2026-10-01T01:52:24+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00052-manual",
+      "title": "INTPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691510788993320968",
+      "posted_at": "2026-10-01T01:52:35+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00053-manual",
+      "title": "ENTJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691510788993337352",
+      "posted_at": "2026-10-01T01:52:46+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00054-manual",
+      "title": "ENTPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691510853656627201",
+      "posted_at": "2026-10-01T01:52:58+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00055-manual",
+      "title": "INFJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691511124109297665",
+      "posted_at": "2026-10-01T01:53:09+00:00",
+      "status": "SENT"
     }
   ]
 }
