@@ -867,6 +867,48 @@
       "publish_id": "p_inbox_url~v2.7691511124109297665",
       "posted_at": "2026-10-01T01:53:09+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00056-manual",
+      "title": "INFPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691885088413452308",
+      "posted_at": "2026-10-02T02:03:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00057-manual",
+      "title": "ENFJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691885093098555413",
+      "posted_at": "2026-10-02T02:03:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00058-manual",
+      "title": "ENFPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691885093098620949",
+      "posted_at": "2026-10-02T02:04:05+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00059-manual",
+      "title": "ISTJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691885088413616148",
+      "posted_at": "2026-10-02T02:04:16+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00060-manual",
+      "title": "ISFJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691885269632501766",
+      "posted_at": "2026-10-02T02:04:26+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00061-manual",
+      "title": "ESTJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7691884785031006229",
+      "posted_at": "2026-10-02T02:04:37+00:00",
+      "status": "SENT"
     }
   ]
 }
