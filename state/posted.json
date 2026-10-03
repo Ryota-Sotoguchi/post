@@ -909,6 +909,48 @@
       "publish_id": "p_inbox_url~v2.7691884785031006229",
       "posted_at": "2026-10-02T02:04:37+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00062-manual",
+      "title": "ESFJの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7692333248101435400",
+      "posted_at": "2026-10-03T07:03:25+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00063-manual",
+      "title": "ISTPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7692333446609307666",
+      "posted_at": "2026-10-03T07:03:36+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00064-manual",
+      "title": "ISFPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7692333477379115015",
+      "posted_at": "2026-10-03T07:03:46+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00065-manual",
+      "title": "ESTPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7692333446609389586",
+      "posted_at": "2026-10-03T07:03:57+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00066-manual",
+      "title": "ESFPの取扱説明書【恋愛編】",
+      "publish_id": "p_inbox_url~v2.7692333516063213576",
+      "posted_at": "2026-10-03T07:04:08+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00067-gallery",
+      "title": "推しが尊すぎた時の16タイプ",
+      "publish_id": "p_inbox_url~v2.7692333477379229703",
+      "posted_at": "2026-10-03T07:04:18+00:00",
+      "status": "SENT"
     }
   ]
 }
