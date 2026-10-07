@@ -1035,6 +1035,48 @@
       "publish_id": "p_inbox_url~v2.7693539121582737460",
       "posted_at": "2026-10-06T13:01:24+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00080-compat",
+      "title": "ISTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7693996582748358662",
+      "posted_at": "2026-10-07T18:37:11+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00081-compat",
+      "title": "ISFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7693996710573393926",
+      "posted_at": "2026-10-07T18:37:22+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00082-compat",
+      "title": "ESTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7693996710573590534",
+      "posted_at": "2026-10-07T18:37:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00083-compat",
+      "title": "ESFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7693996710573639686",
+      "posted_at": "2026-10-07T18:37:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00084-ranking",
+      "title": "第一印象と中身のギャップが大きいタイプランキング",
+      "publish_id": "p_inbox_url~v2.7693996808041662465",
+      "posted_at": "2026-10-07T18:37:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00085-manual",
+      "title": "INTJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7693996837769988148",
+      "posted_at": "2026-10-07T18:38:06+00:00",
+      "status": "SENT"
     }
   ]
 }
