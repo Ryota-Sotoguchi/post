@@ -1077,6 +1077,48 @@
       "publish_id": "p_inbox_url~v2.7693996837769988148",
       "posted_at": "2026-10-07T18:38:06+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00086-manual",
+      "title": "INTPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648515540256789",
+      "posted_at": "2026-10-09T12:47:39+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00087-manual",
+      "title": "ENTJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648748013586453",
+      "posted_at": "2026-10-09T12:47:50+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00088-manual",
+      "title": "ENTPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648695408773141",
+      "posted_at": "2026-10-09T12:48:01+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00089-manual",
+      "title": "INFJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648779479369780",
+      "posted_at": "2026-10-09T12:48:12+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00090-manual",
+      "title": "INFPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648779479435316",
+      "posted_at": "2026-10-09T12:48:24+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00091-manual",
+      "title": "ENFJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7694648839168509972",
+      "posted_at": "2026-10-09T12:48:35+00:00",
+      "status": "SENT"
     }
   ]
 }
