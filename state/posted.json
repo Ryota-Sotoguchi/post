@@ -1119,6 +1119,48 @@
       "publish_id": "p_inbox_url~v2.7694648839168509972",
       "posted_at": "2026-10-09T12:48:35+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00092-manual",
+      "title": "ENFPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695302263232874503",
+      "posted_at": "2026-10-11T07:03:15+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00093-manual",
+      "title": "ISTJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695302288105261063",
+      "posted_at": "2026-10-11T07:03:26+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00094-manual",
+      "title": "ISFJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695302333265659912",
+      "posted_at": "2026-10-11T07:03:37+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00095-manual",
+      "title": "ESTJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695301990700042248",
+      "posted_at": "2026-10-11T07:03:48+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00096-manual",
+      "title": "ESFJの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695302454010939399",
+      "posted_at": "2026-10-11T07:03:59+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00097-manual",
+      "title": "ISTPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695302448668215304",
+      "posted_at": "2026-10-11T07:04:10+00:00",
+      "status": "SENT"
     }
   ]
 }
