@@ -1161,6 +1161,48 @@
       "publish_id": "p_inbox_url~v2.7695302448668215304",
       "posted_at": "2026-10-11T07:04:10+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00098-manual",
+      "title": "ISFPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695765091813050388",
+      "posted_at": "2026-10-12T12:59:33+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00099-manual",
+      "title": "ESTPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695765182542448660",
+      "posted_at": "2026-10-12T12:59:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00100-manual",
+      "title": "ESFPの取扱説明書【友達編】",
+      "publish_id": "p_inbox_url~v2.7695765235895404565",
+      "posted_at": "2026-10-12T12:59:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0001-manual",
+      "title": "INFPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7695765358615021620",
+      "posted_at": "2026-10-12T13:00:06+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0002-manual",
+      "title": "ENFJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7695765372980594708",
+      "posted_at": "2026-10-12T13:00:17+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0003-manual",
+      "title": "ENFPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7695765428483688468",
+      "posted_at": "2026-10-12T13:00:28+00:00",
+      "status": "SENT"
     }
   ]
 }
