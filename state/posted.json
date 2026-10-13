@@ -1203,6 +1203,48 @@
       "publish_id": "p_inbox_url~v2.7695765428483688468",
       "posted_at": "2026-10-12T13:00:28+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0004-manual",
+      "title": "ISTJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164334615136276",
+      "posted_at": "2026-10-13T14:50:21+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0005-manual",
+      "title": "ISFJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164444791179270",
+      "posted_at": "2026-10-13T14:50:32+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0006-manual",
+      "title": "ESTJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164612320151572",
+      "posted_at": "2026-10-13T14:50:43+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0007-manual",
+      "title": "ESFJが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164483626240020",
+      "posted_at": "2026-10-13T14:50:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0008-manual",
+      "title": "ISTPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164792821811221",
+      "posted_at": "2026-10-13T14:51:06+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0009-manual",
+      "title": "ISFPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696164587209771029",
+      "posted_at": "2026-10-13T14:51:17+00:00",
+      "status": "SENT"
     }
   ]
 }
