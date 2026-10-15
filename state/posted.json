@@ -1245,6 +1245,48 @@
       "publish_id": "p_inbox_url~v2.7696164587209771029",
       "posted_at": "2026-10-13T14:51:17+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0010-manual",
+      "title": "ESTPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696694526563371026",
+      "posted_at": "2026-10-15T01:17:36+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0011-manual",
+      "title": "ESFPが本命だけに見せる距離の縮め方",
+      "publish_id": "p_inbox_url~v2.7696694526563387410",
+      "posted_at": "2026-10-15T01:17:46+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0012-manual",
+      "title": "INTJが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7696697347564111890",
+      "posted_at": "2026-10-15T01:17:57+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0013-manual",
+      "title": "INTPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7696696971146938375",
+      "posted_at": "2026-10-15T01:18:08+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0014-manual",
+      "title": "ENTJが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7696697347564177426",
+      "posted_at": "2026-10-15T01:18:19+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0015-manual",
+      "title": "ENTPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7696697202932025351",
+      "posted_at": "2026-10-15T01:18:29+00:00",
+      "status": "SENT"
     }
   ]
 }
