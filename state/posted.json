@@ -1329,6 +1329,48 @@
       "publish_id": "p_inbox_url~v2.7697105409454983169",
       "posted_at": "2026-10-16T03:41:05+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0022-manual",
+      "title": "ESTJが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544511723128850",
+      "posted_at": "2026-10-17T08:04:35+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0023-manual",
+      "title": "ESFJが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544594208131090",
+      "posted_at": "2026-10-17T08:04:46+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0024-manual",
+      "title": "ISTPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544594208278546",
+      "posted_at": "2026-10-17T08:04:56+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0025-manual",
+      "title": "ISFPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544656556410896",
+      "posted_at": "2026-10-17T08:05:08+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0026-manual",
+      "title": "ESTPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544671513544712",
+      "posted_at": "2026-10-17T08:05:19+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0027-manual",
+      "title": "ESFPが本命前で見せる距離を詰めたい時の葛藤",
+      "publish_id": "p_inbox_url~v2.7697544781743884296",
+      "posted_at": "2026-10-17T08:05:29+00:00",
+      "status": "SENT"
     }
   ]
 }
