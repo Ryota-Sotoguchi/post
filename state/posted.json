@@ -1497,6 +1497,48 @@
       "publish_id": "p_inbox_url~v2.7699705813745633298",
       "posted_at": "2026-10-23T03:52:41+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0046-manual",
+      "title": "ENTJが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700374022588876806",
+      "posted_at": "2026-10-24T23:05:07+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0047-manual",
+      "title": "ENTPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700374022588942342",
+      "posted_at": "2026-10-24T23:05:18+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0048-manual",
+      "title": "INFJが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700373954476869633",
+      "posted_at": "2026-10-24T23:05:29+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0049-manual",
+      "title": "INFPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700373954476935169",
+      "posted_at": "2026-10-24T23:05:40+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0050-manual",
+      "title": "ENFJが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700374208940869638",
+      "posted_at": "2026-10-24T23:05:51+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0051-manual",
+      "title": "ENFPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700374208940902406",
+      "posted_at": "2026-10-24T23:06:02+00:00",
+      "status": "SENT"
     }
   ]
 }
