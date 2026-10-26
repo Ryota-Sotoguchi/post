@@ -1539,6 +1539,48 @@
       "publish_id": "p_inbox_url~v2.7700374208940902406",
       "posted_at": "2026-10-24T23:06:02+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0054-manual",
+      "title": "ESTJが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806691654567957",
+      "posted_at": "2026-10-26T03:04:13+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0055-manual",
+      "title": "ESFJが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806634729752597",
+      "posted_at": "2026-10-26T03:04:24+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0056-manual",
+      "title": "ISTPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806811894335508",
+      "posted_at": "2026-10-26T03:04:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0057-manual",
+      "title": "ISFPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806783706826772",
+      "posted_at": "2026-10-26T03:04:45+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0058-manual",
+      "title": "ESTPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806783706875924",
+      "posted_at": "2026-10-26T03:04:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0059-manual",
+      "title": "ESFPが脈ありの時にする行動",
+      "publish_id": "p_inbox_url~v2.7700806997561673748",
+      "posted_at": "2026-10-26T03:05:06+00:00",
+      "status": "SENT"
     }
   ]
 }
