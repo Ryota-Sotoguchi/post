@@ -1581,6 +1581,48 @@
       "publish_id": "p_inbox_url~v2.7700806997561673748",
       "posted_at": "2026-10-26T03:05:06+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0060-manual",
+      "title": "INTJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195006379395093",
+      "posted_at": "2026-10-27T04:10:53+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0061-manual",
+      "title": "INTPが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195006379526165",
+      "posted_at": "2026-10-27T04:11:05+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0062-manual",
+      "title": "ENTJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195039573182484",
+      "posted_at": "2026-10-27T04:11:16+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0063-manual",
+      "title": "ENTPが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195109523114005",
+      "posted_at": "2026-10-27T04:11:26+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0064-manual",
+      "title": "INFJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195039573329940",
+      "posted_at": "2026-10-27T04:11:37+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0065-manual",
+      "title": "INFPが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7701195079559120917",
+      "posted_at": "2026-10-27T04:11:49+00:00",
+      "status": "SENT"
     }
   ]
 }
