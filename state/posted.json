@@ -1623,6 +1623,48 @@
       "publish_id": "p_inbox_url~v2.7701195079559120917",
       "posted_at": "2026-10-27T04:11:49+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/L0066-manual",
+      "title": "ENFJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702153434736314388",
+      "posted_at": "2026-10-29T18:11:12+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0067-manual",
+      "title": "ENFPが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702152507019610133",
+      "posted_at": "2026-10-29T18:11:23+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0068-manual",
+      "title": "ISTJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702153749808564244",
+      "posted_at": "2026-10-29T18:11:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0069-manual",
+      "title": "ISFJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702153881773656085",
+      "posted_at": "2026-10-29T18:11:45+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0070-manual",
+      "title": "ESTJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702153885398288405",
+      "posted_at": "2026-10-29T18:11:56+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/L0071-manual",
+      "title": "ESFJが限界前に見せる防衛反応",
+      "publish_id": "p_inbox_url~v2.7702153064773486613",
+      "posted_at": "2026-10-29T18:12:08+00:00",
+      "status": "SENT"
     }
   ]
 }
