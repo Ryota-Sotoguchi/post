@@ -31,6 +31,21 @@ FORMAT_LABELS = {
 }
 
 
+# The last line of the caption, per format: what the viewer is asked to do.
+CALLS_TO_ACTION = {
+    "gallery": "あなたのタイプはどうだった？コメントで教えて",
+    "ranking": "自分のタイプは何位だった？コメントで教えて",
+    "quiz": "何問正解できた？コメントで点数を教えて",
+    "chat": "自分ならどう返す？そのままコピーして使ってね",
+    "landmine": "言われたことある？心当たりのある人に送ってみて",
+    "roles": "自分と友達、どの役割だった？",
+    "manual": "当てはまったら保存して、その人に送ってみて",
+    "compat": "相手のタイプと照らし合わせてみて",
+    "remedy": "しんどい日のために保存しておいて",
+    "versus": "あなたはどっちだった？迷ったらコメントで聞いて",
+}
+
+
 @dataclass(frozen=True, slots=True)
 class Item:
     """One type's entry: a line that sells it and a line that explains it."""
@@ -113,12 +128,12 @@ class Post:
 
     @property
     def description(self) -> str:
-        cta = {
-            "gallery": "あなたのタイプはどうだった？コメントで教えて",
-            "ranking": "自分のタイプは何位だった？コメントで教えて",
-            "manual": "当てはまったら保存して、その人に送ってみて",
-            "compat": "相手のタイプと照らし合わせてみて",
-        }[self.format]
+        # Every format needs its line here. A format added without one used to
+        # raise, and since this runs while the post is being written, the whole
+        # day's generation died with it - quietly, because the scheduled run
+        # carries on to the next step. CALLS_TO_ACTION is checked by a test
+        # against FORMATS, and an unknown format falls back rather than raises.
+        cta = CALLS_TO_ACTION.get(self.format, CALLS_TO_ACTION["gallery"])
         return f"{self.hook}\n\n{cta}\n\n{' '.join(self.hashtags)}"
 
     def to_dict(self) -> dict:

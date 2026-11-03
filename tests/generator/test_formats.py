@@ -20,7 +20,7 @@ from mbti_tiktok_bot.design.fonts import face
 from mbti_tiktok_bot.design.looks import LOOK_ORDER
 from mbti_tiktok_bot.formats import legacy, planner, produce, writer
 from mbti_tiktok_bot.formats import topics as K
-from mbti_tiktok_bot.formats.model import Card, Item, Post, verify
+from mbti_tiktok_bot.formats.model import CALLS_TO_ACTION, FORMATS, Card, Item, Post, verify
 
 TARGET = date(2026, 9, 20)
 
@@ -504,3 +504,46 @@ class NewFormatTests(unittest.TestCase):
                 with Image.open(slides[1]) as image:
                     self.assertEqual(image.size, (1080, 1920))
                     self.assertEqual(image.mode, "RGB")
+
+
+class CaptionTests(unittest.TestCase):
+    """The caption is built while a post is written, so a gap here kills the day.
+
+    A format was added without its call to action, and every scheduled run
+    died on the KeyError for a month before anyone noticed: the run carries on
+    to the next step, so nothing downstream looked broken.
+    """
+
+    def test_every_format_has_a_call_to_action(self) -> None:
+        from mbti_tiktok_bot.formats.model import CALLS_TO_ACTION, FORMATS
+
+        self.assertEqual(sorted(CALLS_TO_ACTION), sorted(FORMATS))
+
+    def test_an_unknown_format_still_produces_a_caption(self) -> None:
+        post = replace(_small_post(), format="something-new")
+        self.assertIn(post.hook, post.description)
+
+    def test_a_post_of_every_format_can_be_made(self) -> None:
+        # make_post is what the scheduled run calls: it writes the caption, so
+        # it is the step that would have caught the missing line.
+        config = _config(Path(self.temp.name)) if hasattr(self, "temp") else None
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = _config(Path(temp_dir))
+            built = [
+                writer.gallery(config, 1, "既読スルーされた時", TARGET),
+                writer.ranking(config, 2, "怒らせると一番怖いタイプ", TARGET),
+                writer.quiz(config, 3, "断る時の一言", TARGET),
+                writer.chat(config, 4, "『怒ってる？』と聞かれた時", TARGET),
+                writer.landmine(config, 5, "恋人に言われたら終わる一言", TARGET),
+                writer.roles(config, 6, "飲み会", TARGET),
+                writer.manual(config, 7, "INTJ", "恋愛", TARGET),
+                writer.compat(config, 8, "INFJ", "恋愛", TARGET),
+                writer.remedy(config, 9, "INFP", "疲れた日", TARGET),
+                writer.versus(config, 10, ("INFP", "INFJ"), TARGET),
+            ]
+            self.assertEqual({post.format for post in built}, set(FORMATS))
+            for post in built:
+                with self.subTest(format=post.format):
+                    folder = produce.make_post(config, post)
+                    caption = (folder / "caption.txt").read_text(encoding="utf-8")
+                    self.assertIn(CALLS_TO_ACTION[post.format], caption)
