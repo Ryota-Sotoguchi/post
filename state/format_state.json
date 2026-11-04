@@ -1,19 +1,24 @@
 {
-  "next_seq": 221,
-  "series_count": 6,
-  "series": null,
-  "between": true,
-  "one_offs": 23,
+  "next_seq": 224,
+  "series_count": 7,
+  "series": {
+    "format": "remedy",
+    "angle": "落ち込んだ日",
+    "number": 7,
+    "position": 2
+  },
+  "between": false,
+  "one_offs": 24,
   "cursors": {
     "gallery": 11,
     "ranking": 11,
     "quiz": 0,
     "chat": 0,
     "landmine": 1,
-    "roles": 0,
+    "roles": 1,
     "manual": 47,
     "compat": 47,
-    "remedy": 0,
+    "remedy": 2,
     "versus": 0
   },
   "extra_topics": {
