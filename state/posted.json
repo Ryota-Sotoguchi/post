@@ -1707,6 +1707,48 @@
       "publish_id": "p_inbox_url~v2.7703157309932898324",
       "posted_at": "2026-11-01T11:05:08+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00204-landmine",
+      "title": "MBTI別・言われたら一発で冷める一言",
+      "publish_id": "p_inbox_url~v2.7704294412427364372",
+      "posted_at": "2026-11-04T12:38:17+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00205-compat",
+      "title": "INTJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704294435936536597",
+      "posted_at": "2026-11-04T12:38:27+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00206-compat",
+      "title": "INTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704294488995170324",
+      "posted_at": "2026-11-04T12:38:38+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00207-compat",
+      "title": "ENTJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704294430425303061",
+      "posted_at": "2026-11-04T12:38:49+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00208-compat",
+      "title": "ENTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704294488995317780",
+      "posted_at": "2026-11-04T12:39:00+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00209-compat",
+      "title": "INFJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704294762492594196",
+      "posted_at": "2026-11-04T12:39:10+00:00",
+      "status": "SENT"
     }
   ]
 }
