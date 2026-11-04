@@ -82,6 +82,7 @@ def _panelled_copy(look: Look, accent, draw, card: Card, bottom: float, width: f
 
 
 def _grid_of_sixteen(look: Look, character, draw, types: tuple[str, ...], region) -> None:
+    """All sixteen at a glance - always whole figures, however the series is cropped."""
     left, top, right, bottom = region
     cols, rows = 4, 4
     cell_w, cell_h = (right - left) / cols, (bottom - top) / rows
@@ -90,7 +91,7 @@ def _grid_of_sixteen(look: Look, character, draw, types: tuple[str, ...], region
         col, row = index % cols, index // cols
         x0, y0 = left + col * cell_w, top + row * cell_h
         box = (x0 + 8, y0 + 4, x0 + cell_w - 8, y0 + cell_h - label_h - 6)
-        character.alpha_composite(look.portrait(mbti, box, index=index, small=True))
+        character.alpha_composite(look.portrait(mbti, box, index=index, small=True, crop="full"))
         name = T.single(mbti, "label", 28, tracking_em=0.1)
         T.draw(draw, name, x0, y0 + cell_h - label_h + 2, look.sub, align="center", box_width=cell_w)
 
@@ -125,7 +126,7 @@ def cover(look: Look, post: Post, card: Card) -> Layers:
         names_top = region[3] - 76
         for index, mbti in enumerate((left, right)):
             box = (region[0] + index * half, region[1] + 30, region[0] + (index + 1) * half, names_top - 16)
-            character.alpha_composite(look.portrait(mbti, box, index=index))
+            character.alpha_composite(look.portrait(mbti, box, index=index, crop="full"))
             T.draw(draw, T.single(mbti, "display", 72, tracking_em=0.02), region[0] + index * half, names_top,
                    look.rgba("accent"), align="center", box_width=half)
         mark = T.single("VS", "display", 96)
@@ -134,14 +135,14 @@ def cover(look: Look, post: Post, card: Card) -> Layers:
     elif post.format in ("manual", "remedy"):
         mbti = post.focus
         look.type_mark(accent, canvas(accent, look.ctx), mbti, region[1] + 20, size=560)
-        character.alpha_composite(look.portrait(mbti, region))
+        character.alpha_composite(look.portrait(mbti, region, crop="full"))
     else:
         # The focus type, and a question mark where its matches will be.
         mbti = post.focus
         names_top = region[3] - 76
         half = (region[2] - region[0]) / 2
         left_box = (region[0], region[1] + 40, region[0] + half, names_top - 16)
-        character.alpha_composite(look.portrait(mbti, left_box, index=0))
+        character.alpha_composite(look.portrait(mbti, left_box, index=0, crop="full"))
         right_box = (region[0] + half, region[1] + 40, region[2], names_top - 16)
         radius = min(half, right_box[3] - right_box[1]) * 0.38
         cx, cy = (right_box[0] + right_box[2]) / 2, right_box[3] - radius - 24
@@ -284,7 +285,7 @@ def closer(look: Look, post: Post, card: Card) -> Layers:
     width = (region[2] - region[0]) / max(len(types), 1)
     for index, mbti in enumerate(types):
         box = (region[0] + index * width, region[1], region[0] + (index + 1) * width, region[3])
-        character.alpha_composite(look.portrait(mbti, box, index=index, small=len(types) > 2))
+        character.alpha_composite(look.portrait(mbti, box, index=index, small=len(types) > 2, crop="full"))
 
     look.draw_headline(draw, text, title, SAFE_LEFT, title_top, align="center", width=SAFE_WIDTH)
     look.draw_body(draw, body, SAFE_LEFT, body_top, align="center", width=SAFE_WIDTH)
@@ -433,7 +434,7 @@ def role_map(look: Look, post: Post, card: Card) -> Layers:
         art_bottom = y0 + half_h - 44
         for slot, mbti in enumerate(types):
             box = (x0 + 24 + slot * cell_w, art_top, x0 + 24 + (slot + 1) * cell_w, art_bottom)
-            character.alpha_composite(look.portrait(mbti, box, index=slot, small=True))
+            character.alpha_composite(look.portrait(mbti, box, index=slot, small=True, crop="full"))
             T.draw(draw, T.single(mbti, "display", 30, tracking_em=0.02), box[0], art_bottom + 4,
                    look.sub, align="center", box_width=cell_w)
     return Layers(bg, accent, character, text, order=("background", "accent", "character", "text"))
@@ -457,7 +458,7 @@ def role(look: Look, post: Post, card: Card) -> Layers:
     width = (region[2] - region[0]) / max(len(card.types), 1)
     for index, mbti in enumerate(card.types):
         box = (region[0] + index * width, region[1], region[0] + (index + 1) * width, region[3])
-        character.alpha_composite(look.portrait(mbti, box, index=index, small=True))
+        character.alpha_composite(look.portrait(mbti, box, index=index, small=True, crop="full"))
         T.draw(draw, T.single(mbti, "display", 52, tracking_em=0.02), box[0], names_top,
                look.rgba("accent"), align="center", box_width=width)
     return Layers(bg, accent, character, text)

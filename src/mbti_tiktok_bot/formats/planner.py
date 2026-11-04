@@ -6,8 +6,10 @@ types - the manual for 恋愛, the compatibility post for 友達 - and it runs 0
 sixteen read as one set. A **one-off** covers all sixteen types inside a single
 post, which is what the gallery and the ranking are.
 
-The order is series, one-off, series, one-off. At ten posts a day a series
-takes a day and a half, and the one-off between two of them is the break.
+The order is a series, then a run of one-offs, then the next series. One
+one-off between sixteen-post series left the feed 94% deep-dives on one type,
+and the formats that cover all sixteen hardly appeared at all; a run of four
+puts them back in and breaks up the walk through the types.
 """
 
 from __future__ import annotations
@@ -39,6 +41,8 @@ SERIES_ANGLES = {
     "versus": ("",),
 }
 ONE_OFFS = ("gallery", "ranking", "quiz", "chat", "landmine", "roles")
+# How many one-offs run between two series.
+ONE_OFFS_BETWEEN = 4
 ONE_OFF_TOPICS = {
     "gallery": "GALLERY_TOPICS",
     "ranking": "RANKING_TOPICS",
@@ -64,8 +68,8 @@ class FormatState:
     series_count: int = 0  # how many series have been started, ever
     # The series being walked: its format, angle, number and how far in it is.
     series: dict | None = None
-    # True when a series has just finished and the one-off between series is due.
-    between: bool = False
+    # How many one-offs are still owed before the next series starts.
+    between: int = 0
     one_offs: int = 0
     cursors: dict[str, int] = field(default_factory=lambda: {name: 0 for name in FORMATS})
     extra_topics: dict[str, list[str]] = field(default_factory=lambda: {name: [] for name in ONE_OFFS})
@@ -96,7 +100,8 @@ def load_state(config: AppConfig) -> FormatState:
     state.series_count = int(data.get("series_count", 0))
     series = data.get("series")
     state.series = dict(series) if isinstance(series, dict) else None
-    state.between = bool(data.get("between", False))
+    # It was a bool when only one one-off ran between series.
+    state.between = int(data.get("between") or 0)
     state.one_offs = int(data.get("one_offs", 0))
     state.cursors.update({name: int(value) for name, value in data.get("cursors", {}).items()})
     for name in ONE_OFFS:
@@ -198,7 +203,7 @@ def _one_off(config: AppConfig, state: FormatState) -> Spec:
 
 
 def next_spec(config: AppConfig, state: FormatState) -> Spec:
-    if state.series is None and not state.between:
+    if state.series is None and state.between <= 0:
         state.series = _start_series(state)
         state.series_count = int(state.series["number"])
     if state.series is not None:
@@ -243,9 +248,9 @@ def advance(state: FormatState, spec: Spec) -> None:
         assert state.series is not None
         state.series["position"] = spec.position
         if spec.position >= series_length(spec.format):
-            # The sixteen are done: one post of something else, then the next subject.
+            # The subject is done: a run of other formats, then the next one.
             state.series = None
-            state.between = True
+            state.between = ONE_OFFS_BETWEEN
     else:
         state.one_offs += 1
-        state.between = False
+        state.between = max(state.between - 1, 0)

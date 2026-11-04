@@ -203,14 +203,16 @@ class Look:
 
     # -- characters ----------------------------------------------------------
     def portrait(self, mbti: str, box: tuple[float, float, float, float], index: int = 0,
-                 small: bool = False) -> Image.Image:
+                 small: bool = False, crop: str = "") -> Image.Image:
         """A character presented inside box, bottom-anchored. Returns a device layer."""
         raise NotImplementedError
 
-    def _fit(self, mbti: str, box, treat, anchor_x: float | None = None, scale: float = 1.0) -> Image.Image:
+    def _fit(self, mbti: str, box, treat, anchor_x: float | None = None, scale: float = 1.0,
+             crop: str = "") -> Image.Image:
         left, top, right, bottom = box
         layer = blank(self.ctx)
-        treated, size = subject(self.ctx, mbti, (bottom - top) * scale, treat, max_width=(right - left) * scale)
+        treated, size = subject(self.ctx, mbti, (bottom - top) * scale, treat,
+                                max_width=(right - left) * scale, crop=crop)
         paste(layer, self.ctx, treated, size, (anchor_x if anchor_x is not None else (left + right) / 2, bottom))
         return layer
 
@@ -303,14 +305,14 @@ class Neon(Look):
     def bubble_ink(self, incoming) -> RGBA:
         return self.ink
 
-    def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
+    def portrait(self, mbti, box, index=0, small=False, crop="") -> Image.Image:
         ctx = self.ctx
 
         def treat(figure):
             lit = fx.rim(figure, self.rgba("accent2", 235), (ctx.px(-8 if small else -10), ctx.px(-4)), ctx.px(4 if small else 5))
             return fx.glow(lit, ctx.px(18 if small else 32), self.rgba("accent", 110))
 
-        return self._fit(mbti, box, treat)
+        return self._fit(mbti, box, treat, crop=crop)
 
 
 # --- BUBBLE -------------------------------------------------------------------
@@ -436,7 +438,7 @@ class Bubble(Look):
         # The reply sits on the badge colour, which is deep enough for white.
         return self.sub if incoming else fx.rgba(C.readable(self.c["badge"], self.c["ink"], "#ffffff"))
 
-    def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
+    def portrait(self, mbti, box, index=0, small=False, crop="") -> Image.Image:
         ctx = self.ctx
         left, top, right, bottom = box
         tilt = (-5, 3, -2, 5, -4, 2)[(ctx.seed // 5 + index) % 6]
@@ -455,7 +457,7 @@ class Bubble(Look):
             sticker = sticker.rotate(tilt, resample=Image.Resampling.BICUBIC, expand=True)
             return fx.shadow(sticker, (ctx.px(5), ctx.px(12)), ctx.px(9), self.rgba("ink", 70))
 
-        layer.alpha_composite(self._fit(mbti, box, treat, scale=0.96))
+        layer.alpha_composite(self._fit(mbti, box, treat, scale=0.96, crop=crop))
         return layer
 
 
@@ -536,7 +538,7 @@ class Editorial(Look):
         else:
             draw.rectangle(box, fill=self.rgba("field"), outline=self.rgba("ink", 200), width=2)
 
-    def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
+    def portrait(self, mbti, box, index=0, small=False, crop="") -> Image.Image:
         shape = "circle" if small or (box[2] - box[0]) > (box[3] - box[1]) * 0.95 else "arch"
         left, top, right, bottom = box
         if shape == "circle":
@@ -550,7 +552,7 @@ class Editorial(Look):
         figure = min(height * (1.2 if shape == "circle" else 1.06), width * 1.5)
         return framed(self.ctx, mbti, box, shape_mask(self.ctx, box, shape), self.rgba("field"),
                       figure, height * (0.08 if shape == "circle" else 0.10),
-                      overflow=height * (0.12 if shape == "circle" else 0.0))
+                      overflow=height * (0.12 if shape == "circle" else 0.0), crop=crop)
 
 
 # --- BRUTAL -------------------------------------------------------------------
@@ -655,7 +657,7 @@ class Brutal(Look):
         # The reply is on white, whatever the field is doing.
         return self.sub if incoming else fx.rgba("#0d0d0d")
 
-    def portrait(self, mbti, box, index=0, small=False) -> Image.Image:
+    def portrait(self, mbti, box, index=0, small=False, crop="") -> Image.Image:
         ctx = self.ctx
         # The characters keep their own colours. Mapping them onto two tones of
         # the field made the sixteen types sixteen identical silhouettes, and
@@ -668,7 +670,7 @@ class Brutal(Look):
             edged = fx.outline(figure, ctx.px(5 if small else 8), keyline)
             return fx.shadow(edged, (ctx.px(8 if small else 14), ctx.px(8 if small else 14)), 0.1, shade)
 
-        return self._fit(mbti, box, treat)
+        return self._fit(mbti, box, treat, crop=crop)
 
 
 LOOKS = {"neon": Neon, "bubble": Bubble, "editorial": Editorial, "brutal": Brutal}

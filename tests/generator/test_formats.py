@@ -76,11 +76,33 @@ class PlannerTests(unittest.TestCase):
         self.assertEqual([spec.focus for spec in first], list(MBTI_POST_ORDER))
         self.assertEqual([spec.position for spec in first], list(range(1, 17)))
         self.assertEqual({spec.angle for spec in first}, {"基本"})
-        # Then one post of something else, then the next subject, in full.
-        self.assertEqual(specs[16].format, "gallery")
-        self.assertEqual({spec.format for spec in specs[17:33]}, {"compat"})
-        self.assertEqual([spec.focus for spec in specs[17:33]], list(MBTI_POST_ORDER))
-        self.assertEqual(specs[33].format, "ranking")
+        # Then a run of one-offs, each a different format, then the next
+        # subject in full.
+        between = specs[16:16 + planner.ONE_OFFS_BETWEEN]
+        self.assertEqual([spec.format for spec in between], list(planner.ONE_OFFS[:len(between)]))
+        rest = specs[16 + planner.ONE_OFFS_BETWEEN:]
+        self.assertEqual({spec.format for spec in rest}, {"compat"})
+        self.assertEqual([spec.focus for spec in rest], list(MBTI_POST_ORDER)[: len(rest)])
+
+    def test_the_one_offs_between_series_are_all_different(self) -> None:
+        # One one-off between sixteens left the feed 94% deep-dives on a type.
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = _config(Path(temp_dir))
+            state = planner.FormatState()
+            formats = []
+            for _ in range(60):
+                spec = planner.next_spec(config, state)
+                formats.append(spec.format)
+                planner.advance(state, spec)
+
+        one_offs = [name for name in formats if name in planner.ONE_OFFS]
+        self.assertGreaterEqual(len(one_offs), 8)
+        # No format twice inside one run between series, and over sixty posts
+        # most of the six have had a turn.
+        run = one_offs[: planner.ONE_OFFS_BETWEEN]
+        self.assertEqual(len(set(run)), len(run))
+        self.assertGreaterEqual(len(set(one_offs)), 5)
+        self.assertGreater(len(one_offs) / len(formats), 0.15)
 
     def test_every_post_of_a_series_carries_the_same_series(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

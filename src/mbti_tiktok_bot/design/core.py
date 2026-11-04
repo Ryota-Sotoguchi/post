@@ -35,12 +35,20 @@ def _load_cutout(path: str) -> Image.Image:
         return trim(opened.convert("RGBA"))
 
 
+# How much of a figure a crop keeps, measured from the top of its head.
+CROPS = {"full": 1.0, "bust": 0.56}
+
+
 @dataclass(slots=True)
 class Context:
     config: AppConfig
     palette: Palette
     seed: int
     scale: int
+    # There is one illustration per type, and a series uses it on every slide,
+    # so the series picks how close it is held: the whole figure, or a bust.
+    # The same sixteen pictures then do not look like the same sixteen slides.
+    crop: str = "full"
     cache: dict = field(default_factory=dict)
 
     @property
@@ -53,8 +61,9 @@ class Context:
     def box(self, box: tuple[float, float, float, float]) -> tuple[int, int, int, int]:
         return tuple(self.px(value) for value in box)  # type: ignore[return-value]
 
-    def subject_of(self, mbti: str) -> Image.Image:
-        """The provided illustration for a type, trimmed to its alpha."""
+    def subject_of(self, mbti: str, crop: str = "") -> Image.Image:
+        """The provided illustration for a type, trimmed to its alpha and held
+        at the distance this series uses (or the one the layout asks for)."""
         from mbti_tiktok_bot.visuals import _resolve_illustration_path
 
         source = _resolve_illustration_path(self.config, mbti)
@@ -65,7 +74,13 @@ class Context:
                 f"Provided MBTI material is required for {mbti}; "
                 f"place it in {self.config.official_images_dir} or {self.config.assets_dir}"
             )
-        return _load_cutout(str(source))
+        figure = _load_cutout(str(source))
+        keep = CROPS.get(crop or self.crop, 1.0)
+        if keep >= 1.0:
+            return figure
+        # Cut from the bottom, so the head stays where it is and the figure
+        # reads as the same character seen closer.
+        return trim(figure.crop((0, 0, figure.width, max(int(figure.height * keep), 1))))
 
 
 # --- colour -----------------------------------------------------------------

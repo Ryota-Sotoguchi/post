@@ -10,7 +10,7 @@ from pathlib import Path
 from mbti_tiktok_bot.catalog import GROUP_PALETTE_VARIANTS
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.design.cards import LAYOUTS
-from mbti_tiktok_bot.design.core import HEIGHT, WIDTH, Context
+from mbti_tiktok_bot.design.core import CROPS, HEIGHT, WIDTH, Context
 from mbti_tiktok_bot.design.looks import LOOK_ORDER, LOOKS
 from mbti_tiktok_bot.formats.model import Post
 from mbti_tiktok_bot.models import SceneRenderAssets
@@ -59,11 +59,16 @@ def render_post(post: Post, config: AppConfig, slides_dir: Path, look: str | Non
     shutil.rmtree(render_dir, ignore_errors=True)
     keep = config.keep_render_layers
 
-    ctx = Context(config=config, palette=palette_for(post), seed=post_seed(post), scale=RENDER_SCALE)
+    seed = post_seed(post)
+    # One picture per type has to carry a lot of slides, so a series decides
+    # how close it is held. The covers stay full-length whatever this says.
+    crop = sorted(CROPS)[_seed_choice(seed, "crop", len(CROPS))]
+    ctx = Context(config=config, palette=palette_for(post), seed=seed, scale=RENDER_SCALE, crop=crop)
     chosen = look or look_name(post)
     style = LOOKS[chosen](ctx)
     (slides_dir.parent / "visual_identity.json").write_text(
-        json.dumps({"version": 8, "look": chosen, "palette": ctx.palette.name, "format": post.format,
+        json.dumps({"version": 9, "look": chosen, "palette": ctx.palette.name, "format": post.format,
+                    "crop": crop,
                     "series": post.series, "series_index": post.series_index,
                     "series_position": post.series_position, "render_scale": RENDER_SCALE},
                    ensure_ascii=False, indent=2),

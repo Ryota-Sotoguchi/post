@@ -59,6 +59,7 @@ def subject(
     height: float,
     treat: Callable[[Image.Image], Image.Image] | None = None,
     max_width: float | None = None,
+    crop: str = "",
 ) -> tuple[Image.Image, tuple[int, int]]:
     """A character scaled to a logical height (capped by max_width), then treated.
 
@@ -69,7 +70,7 @@ def subject(
     """
     if height < MIN_FIGURE:
         raise ValueError(f"No room to draw {mbti}: {height:.0f}px tall, the minimum is {MIN_FIGURE}px")
-    figure = fx.fit_height(ctx.subject_of(mbti), ctx.px(height))
+    figure = fx.fit_height(ctx.subject_of(mbti, crop), ctx.px(height))
     if max_width is not None and figure.width > ctx.px(max_width):
         figure = fx.fit_width(figure, ctx.px(max_width))
     size = figure.size
@@ -172,7 +173,7 @@ def shape_mask(ctx: Context, box: tuple[float, float, float, float], shape: str,
 
 def framed(ctx: Context, mbti: str, box: tuple[float, float, float, float], mask: Image.Image,
            field: tuple[int, int, int, int] | None, height: float, top_inset: float, treat=None,
-           overflow: float = 0.0) -> Image.Image:
+           overflow: float = 0.0, crop: str = "") -> Image.Image:
     """A character standing inside a shaped window, cropped by the window's edge.
 
     The figure is sized to overflow the window a little and then clipped, so it
@@ -185,7 +186,7 @@ def framed(ctx: Context, mbti: str, box: tuple[float, float, float, float], mask
     if field is not None:
         ScaledDraw(layer, ctx.scale).rectangle(box, fill=field)
     figure_layer = blank(ctx)
-    treated, size = subject(ctx, mbti, height, treat)
+    treated, size = subject(ctx, mbti, height, treat, crop=crop)
     floor = min(top + top_inset + height, bottom + overflow)
     paste(figure_layer, ctx, treated, size, ((left + right) / 2, floor))
     layer.alpha_composite(figure_layer)
