@@ -1,13 +1,8 @@
 {
-  "next_seq": 219,
+  "next_seq": 221,
   "series_count": 6,
-  "series": {
-    "format": "compat",
-    "angle": "友達",
-    "number": 6,
-    "position": 14
-  },
-  "between": false,
+  "series": null,
+  "between": true,
   "one_offs": 23,
   "cursors": {
     "gallery": 11,
@@ -17,7 +12,7 @@
     "landmine": 1,
     "roles": 0,
     "manual": 47,
-    "compat": 45,
+    "compat": 47,
     "remedy": 0,
     "versus": 0
   },
