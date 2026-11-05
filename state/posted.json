@@ -1749,6 +1749,48 @@
       "publish_id": "p_inbox_url~v2.7704294762492594196",
       "posted_at": "2026-11-04T12:39:10+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00210-compat",
+      "title": "INFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690158398113798",
+      "posted_at": "2026-11-05T14:14:12+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00211-compat",
+      "title": "ENFJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690230464579605",
+      "posted_at": "2026-11-05T14:14:23+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00212-compat",
+      "title": "ENFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690156624283668",
+      "posted_at": "2026-11-05T14:14:33+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00213-compat",
+      "title": "ISTJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690399947868181",
+      "posted_at": "2026-11-05T14:14:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00214-compat",
+      "title": "ISFJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690218658580500",
+      "posted_at": "2026-11-05T14:14:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00215-compat",
+      "title": "ESTJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7704690481002940436",
+      "posted_at": "2026-11-05T14:15:06+00:00",
+      "status": "SENT"
     }
   ]
 }
