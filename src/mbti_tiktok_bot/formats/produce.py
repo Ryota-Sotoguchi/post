@@ -143,6 +143,12 @@ def produce(config: AppConfig, target: date, count: int) -> list[Path]:
     for _ in range(count):
         spec = planner.next_spec(config, state)
         post = planner.write(config, spec, target)
+        # A line that calls a type lazy or stupid is the one that gets quoted
+        # back. The prompt forbids it; if one slips through, ask once more.
+        found = writer.stereotypes(post)
+        if found:
+            print(f"Rewriting {post.key}: it called someone {'、'.join(found)}")
+            post = planner.write(config, spec, target)
         folder = make_post(config, post)
         planner.advance(state, spec)
         planner.save_state(config, state)

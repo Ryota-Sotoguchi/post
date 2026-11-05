@@ -12,7 +12,7 @@ import json
 import random
 from datetime import date
 
-from mbti_tiktok_bot.catalog import MBTI_POST_ORDER, TYPE_DATA
+from mbti_tiktok_bot.catalog import MBTI_POST_ORDER, TYPE_DATA, TYPE_DEPTH
 from mbti_tiktok_bot.config import AppConfig
 from mbti_tiktok_bot.formats import topics as K
 from mbti_tiktok_bot.formats.model import FORMAT_LABELS, Card, Item, Post
@@ -28,6 +28,13 @@ SYSTEM = (
     "hook は内容の説明ではなく、続きを見ずにいられない一文にする。意外性、言い切り、読者への問いかけのどれかを使い、"
     "「紹介」「まとめ」「解説」のような説明的な言葉は使わない。"
     "タイプに性別はないので「彼」「彼女」「男」「女」で人を指さず、タイプ名か「相手」「その人」と書く。"
+    # What the account gets told off for: a post that describes the caricature
+    # rather than the type. The notes carry each type's function stack and the
+    # misreading to avoid, and this is the instruction to use them.
+    "各タイプの参考情報にある「根っこ」と認知機能の並びに沿って書き、「×よくある誤解」に書かれた"
+    "ステレオタイプは書かないこと。怠け者・頭が悪い・冷血・軽い、のような決めつけは使わない。"
+    "能力の優劣や善悪の判定をせず、同じ行動でも動機が違う、という書き方にする。"
+    "断定を避け、「〜しがち」「〜なことが多い」を使う。例外がある前提で書く。"
     "出力は指定されたJSONオブジェクトのみ。"
 )
 
@@ -36,10 +43,22 @@ BODY_LIMIT = 90
 
 
 def _type_notes(types: tuple[str, ...] = TYPES) -> str:
+    """What the writer is given about each type.
+
+    The adjectives alone were not enough: a reader who knows the theory spots
+    a description of the stereotype at once, and says so in the comments. The
+    function stack is the defined part of MBTI, so it goes in, and so does the
+    misreading each type gets, as something to avoid writing.
+    """
     lines = []
     for mbti in types:
         data = TYPE_DATA[mbti]
-        lines.append(f"{mbti}（{data['archetype']}）: {'／'.join(data['traits'])}。恋愛:{data['love']}。ストレス時:{data['stress']}")
+        depth = TYPE_DEPTH[mbti]
+        lines.append(
+            f"{mbti}（{data['archetype']}／{depth['functions']}）: {'／'.join(data['traits'])}。"
+            f"根っこ:{depth['drive']}。恋愛:{data['love']}。ストレス時:{data['stress']}。"
+            f"×よくある誤解:{depth['myth']}"
+        )
     return "\n".join(lines)
 
 
@@ -685,3 +704,23 @@ def versus(config: AppConfig, seq: int, pair: tuple[str, str], target: date,
     return Post(seq, "versus", target.isoformat(), title, hook, focus=left, angle=right,
                 series=series, series_index=series_index, series_position=position,
                 hashtags=_hashtags("versus", pair), cards=cards, source=source)
+
+
+# Words that judge the person rather than describe the behaviour. The system
+# prompt rules them out; this catches the one in a hundred that slips through,
+# because a single line like this is what gets quoted back in the comments.
+STEREOTYPES = (
+    "怠け者", "怠惰", "頭が悪い", "バカ", "アホ", "無能", "冷血", "血も涙もない",
+    "性格が悪い", "クズ", "最低な", "ヤバい奴", "痛い人", "気持ち悪い", "病的",
+    "劣って", "優れている順", "負け組", "勝ち組",
+)
+
+
+def stereotypes(post: Post) -> list[str]:
+    """Any judgement words the copy ended up carrying."""
+    text = " ".join(
+        [post.title, post.hook]
+        + [part for card in post.cards for part in (card.title, card.body)]
+        + [item.title + item.body for card in post.cards for item in card.items]
+    )
+    return [word for word in STEREOTYPES if word in text]

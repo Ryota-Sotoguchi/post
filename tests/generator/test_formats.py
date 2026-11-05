@@ -569,3 +569,29 @@ class CaptionTests(unittest.TestCase):
                     folder = produce.make_post(config, post)
                     caption = (folder / "caption.txt").read_text(encoding="utf-8")
                     self.assertIn(CALLS_TO_ACTION[post.format], caption)
+
+
+class StereotypeTests(unittest.TestCase):
+    """What the account gets told off for is the caricature, not the type."""
+
+    def test_the_prompt_carries_the_functions_and_the_misreading(self) -> None:
+        from mbti_tiktok_bot.catalog import TYPE_DEPTH
+
+        notes = writer._type_notes(("INTJ",))
+        self.assertIn(TYPE_DEPTH["INTJ"]["functions"], notes)
+        self.assertIn("よくある誤解", notes)
+        self.assertIn("ステレオタイプ", writer.SYSTEM)
+
+    def test_every_type_has_its_functions_and_its_misreading(self) -> None:
+        from mbti_tiktok_bot.catalog import TYPE_DATA, TYPE_DEPTH
+
+        self.assertEqual(sorted(TYPE_DEPTH), sorted(TYPE_DATA))
+        for mbti, depth in TYPE_DEPTH.items():
+            with self.subTest(type=mbti):
+                self.assertRegex(depth["functions"], r"^[A-Z][a-z]-[A-Z][a-z]-[A-Z][a-z]-[A-Z][a-z]$")
+                self.assertTrue(depth["drive"] and depth["myth"])
+
+    def test_a_judgement_word_is_caught(self) -> None:
+        post = replace(_small_post(), hook="ESFPは浅くて怠け者")
+        self.assertEqual(writer.stereotypes(post), ["怠け者"])
+        self.assertEqual(writer.stereotypes(_small_post()), [])

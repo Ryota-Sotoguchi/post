@@ -257,3 +257,46 @@ GROUP_PALETTES: dict[str, tuple[str, str, str]] = {
     group: (variants[0].background, variants[0].accent, variants[0].light)
     for group, variants in GROUP_PALETTE_VARIANTS.items()
 }
+
+
+# What each type is actually running on, and the stereotype that gets it wrong.
+#
+# The copy used to be written from three adjectives and a line about love,
+# which is fine until someone who knows the theory reads it: "全然ちげーよ" in
+# the comments is almost always a post that described the stereotype instead of
+# the type. The function stack is the part of MBTI that is actually defined, so
+# the writer gets that, plus the misreading to avoid.
+TYPE_DEPTH: dict[str, dict[str, str]] = {
+    "INTJ": {"functions": "Ni-Te-Fi-Se", "drive": "先の一本道が見えていて、そこへ最短で詰めたい",
+             "myth": "冷血で感情がない。実際は感情を内側(Fi)に持っていて、表に出さないだけ"},
+    "INTP": {"functions": "Ti-Ne-Si-Fe", "drive": "仕組みの筋が通っているかどうかが気持ちよさの基準",
+             "myth": "怠け者。実際は興味の外で体が動かないだけで、内側では延々と回っている"},
+    "ENTJ": {"functions": "Te-Ni-Se-Fi", "drive": "目標に向けて人と段取りを動かしたい",
+             "myth": "冷たい支配者。実際は身内の成長には本気で手間をかける"},
+    "ENTP": {"functions": "Ne-Ti-Fe-Si", "drive": "可能性を広げて、その場で検証したい",
+             "myth": "ただの屁理屈屋。議論は否定ではなく探索で、本人に悪気はない"},
+    "INFJ": {"functions": "Ni-Fe-Ti-Se", "drive": "人の奥の動機が見えてしまい、放っておけない",
+             "myth": "穏やかなお人好し。実際は線を引いたら静かに戻らない"},
+    "INFP": {"functions": "Fi-Ne-Si-Te", "drive": "自分の価値観に正直でいられるかが全て",
+             "myth": "弱くて泣き虫。実際は価値観に触れられると誰より頑固"},
+    "ENFJ": {"functions": "Fe-Ni-Se-Ti", "drive": "人の可能性を引き出して、場ごと前に進めたい",
+             "myth": "八方美人。実際は相手を見て意図的に動いていて、無計画ではない"},
+    "ENFP": {"functions": "Ne-Fi-Te-Si", "drive": "新しい可能性と人に火がつく",
+             "myth": "軽くて飽きっぽい。実際は価値観の芯は動かず、そこだけは譲らない"},
+    "ISTJ": {"functions": "Si-Te-Fi-Ne", "drive": "積み上げた事実と、引き受けた責任で立つ",
+             "myth": "頭が固い。実際は納得できる理由があれば静かにやり方を変える"},
+    "ISFJ": {"functions": "Si-Fe-Ti-Ne", "drive": "覚えていて、先回りして支える",
+             "myth": "自己主張がない。実際は内側に強い基準があり、越えられると離れる"},
+    "ESTJ": {"functions": "Te-Si-Ne-Fi", "drive": "秩序を作って回し、約束を守らせたい",
+             "myth": "押し付けがましい。実際は責任を引き受けている側で、丸投げを嫌う"},
+    "ESFJ": {"functions": "Fe-Si-Ne-Ti", "drive": "場の温度を保ち、みんなの居場所を作る",
+             "myth": "噂好きでお節介。実際は関係の手入れをしていて、放置の方が苦しい"},
+    "ISTP": {"functions": "Ti-Se-Ni-Fe", "drive": "仕組みを手で確かめ、必要な時だけ動く",
+             "myth": "無関心で冷たい。実際は言葉より行動で関わるタイプ"},
+    "ISFP": {"functions": "Fi-Se-Ni-Te", "drive": "自分の感覚と価値観に合うものだけを選ぶ",
+             "myth": "のんびり屋。実際は譲れない線があり、そこでは動かない"},
+    "ESTP": {"functions": "Se-Ti-Fe-Ni", "drive": "今この瞬間の状況を読んで即動く",
+             "myth": "考えなし。実際は状況判断が速いだけで、計算はしている"},
+    "ESFP": {"functions": "Se-Fi-Te-Ni", "drive": "今の楽しさと、目の前の人の感情に全力",
+             "myth": "浅くて軽い。実際は人の機微にかなり敏感で、場の空気を読んでいる"},
+}
