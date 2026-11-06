@@ -1,11 +1,11 @@
 {
-  "next_seq": 245,
+  "next_seq": 247,
   "series_count": 8,
   "series": {
     "format": "versus",
     "angle": "",
     "number": 8,
-    "position": 2
+    "position": 4
   },
   "between": 0,
   "one_offs": 28,
@@ -19,7 +19,7 @@
     "manual": 47,
     "compat": 47,
     "remedy": 16,
-    "versus": 2
+    "versus": 4
   },
   "extra_topics": {
     "gallery": [],
