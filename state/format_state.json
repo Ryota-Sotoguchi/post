@@ -1,7 +1,12 @@
 {
-  "next_seq": 255,
-  "series_count": 8,
-  "series": null,
+  "next_seq": 257,
+  "series_count": 9,
+  "series": {
+    "format": "manual",
+    "angle": "友達",
+    "number": 9,
+    "position": 2
+  },
   "between": 0,
   "one_offs": 32,
   "cursors": {
@@ -11,7 +16,7 @@
     "chat": 1,
     "landmine": 2,
     "roles": 2,
-    "manual": 47,
+    "manual": 49,
     "compat": 47,
     "remedy": 16,
     "versus": 8
