@@ -1791,6 +1791,48 @@
       "publish_id": "p_inbox_url~v2.7704690481002940436",
       "posted_at": "2026-11-05T14:15:06+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00216-compat",
+      "title": "ESFJと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7705321426743560199",
+      "posted_at": "2026-11-07T07:04:47+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00217-compat",
+      "title": "ISTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7705321847449159688",
+      "posted_at": "2026-11-07T07:04:57+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00218-compat",
+      "title": "ISFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7705321847449241608",
+      "posted_at": "2026-11-07T07:05:09+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00219-compat",
+      "title": "ESTPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7705321967411152914",
+      "posted_at": "2026-11-07T07:05:20+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00220-compat",
+      "title": "ESFPと相性がいいタイプ【友達】",
+      "publish_id": "p_inbox_url~v2.7705321967411283986",
+      "posted_at": "2026-11-07T07:05:30+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00221-roles",
+      "title": "飲み会での役割16タイプ",
+      "publish_id": "p_inbox_url~v2.7705322004593051666",
+      "posted_at": "2026-11-07T07:05:41+00:00",
+      "status": "SENT"
     }
   ]
 }
