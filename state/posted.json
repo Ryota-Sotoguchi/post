@@ -1833,6 +1833,48 @@
       "publish_id": "p_inbox_url~v2.7705322004593051666",
       "posted_at": "2026-11-07T07:05:41+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00222-remedy",
+      "title": "INTJの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693297162962996",
+      "posted_at": "2026-11-08T07:06:12+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00223-remedy",
+      "title": "INTPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693297162995764",
+      "posted_at": "2026-11-08T07:06:23+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00224-remedy",
+      "title": "ENTJの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693249793378305",
+      "posted_at": "2026-11-08T07:06:34+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00225-remedy",
+      "title": "ENTPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693297163175988",
+      "posted_at": "2026-11-08T07:06:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00226-remedy",
+      "title": "INFJの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693409733822470",
+      "posted_at": "2026-11-08T07:06:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00227-remedy",
+      "title": "INFPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7705693409733937158",
+      "posted_at": "2026-11-08T07:07:06+00:00",
+      "status": "SENT"
     }
   ]
 }
