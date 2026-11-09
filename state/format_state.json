@@ -1,22 +1,17 @@
 {
-  "next_seq": 270,
+  "next_seq": 272,
   "series_count": 9,
-  "series": {
-    "format": "manual",
-    "angle": "友達",
-    "number": 9,
-    "position": 15
-  },
-  "between": 0,
-  "one_offs": 32,
+  "series": null,
+  "between": 3,
+  "one_offs": 33,
   "cursors": {
     "gallery": 13,
     "ranking": 13,
-    "quiz": 1,
+    "quiz": 2,
     "chat": 1,
     "landmine": 2,
     "roles": 2,
-    "manual": 62,
+    "manual": 63,
     "compat": 47,
     "remedy": 16,
     "versus": 8
