@@ -1,11 +1,11 @@
 {
-  "next_seq": 277,
+  "next_seq": 280,
   "series_count": 10,
   "series": {
     "format": "compat",
     "angle": "仕事",
     "number": 10,
-    "position": 2
+    "position": 5
   },
   "between": 0,
   "one_offs": 36,
@@ -17,7 +17,7 @@
     "landmine": 3,
     "roles": 3,
     "manual": 63,
-    "compat": 49,
+    "compat": 52,
     "remedy": 16,
     "versus": 8
   },
