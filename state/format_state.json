@@ -1,11 +1,11 @@
 {
-  "next_seq": 297,
+  "next_seq": 300,
   "series_count": 11,
   "series": {
     "format": "remedy",
     "angle": "焦ってる日",
     "number": 11,
-    "position": 2
+    "position": 5
   },
   "between": 0,
   "one_offs": 40,
@@ -18,7 +18,7 @@
     "roles": 3,
     "manual": 63,
     "compat": 63,
-    "remedy": 18,
+    "remedy": 21,
     "versus": 8
   },
   "extra_topics": {
