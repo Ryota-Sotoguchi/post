@@ -1917,6 +1917,48 @@
       "publish_id": "p_inbox_url~v2.7706195097133549588",
       "posted_at": "2026-11-09T15:33:14+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00234-remedy",
+      "title": "ISTPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7708265161026635782",
+      "posted_at": "2026-11-15T05:27:10+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00235-remedy",
+      "title": "ISFPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7708265010438572033",
+      "posted_at": "2026-11-15T05:27:21+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00237-remedy",
+      "title": "ESTPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7708265161026750470",
+      "posted_at": "2026-11-15T05:27:32+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00238-remedy",
+      "title": "ESFPの落ち込んだ日の処方箋",
+      "publish_id": "p_inbox_url~v2.7708265426748311604",
+      "posted_at": "2026-11-15T05:27:43+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00239-gallery",
+      "title": "一人になりたい時の16タイプ",
+      "publish_id": "p_inbox_url~v2.7708265426748344372",
+      "posted_at": "2026-11-15T05:27:54+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00240-ranking",
+      "title": "夜ふかし常習犯なタイプランキング",
+      "publish_id": "p_inbox_url~v2.7708265426748459060",
+      "posted_at": "2026-11-15T05:28:05+00:00",
+      "status": "SENT"
     }
   ]
 }
