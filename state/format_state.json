@@ -1,11 +1,11 @@
 {
-  "next_seq": 332,
+  "next_seq": 335,
   "series_count": 13,
   "series": {
     "format": "manual",
     "angle": "仕事",
     "number": 13,
-    "position": 5
+    "position": 8
   },
   "between": 0,
   "one_offs": 48,
@@ -16,7 +16,7 @@
     "chat": 4,
     "landmine": 5,
     "roles": 5,
-    "manual": 68,
+    "manual": 71,
     "compat": 63,
     "remedy": 32,
     "versus": 16
