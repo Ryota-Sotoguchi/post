@@ -1,22 +1,17 @@
 {
-  "next_seq": 342,
+  "next_seq": 345,
   "series_count": 13,
-  "series": {
-    "format": "manual",
-    "angle": "仕事",
-    "number": 13,
-    "position": 15
-  },
-  "between": 0,
-  "one_offs": 48,
+  "series": null,
+  "between": 2,
+  "one_offs": 50,
   "cursors": {
-    "gallery": 15,
-    "ranking": 15,
+    "gallery": 16,
+    "ranking": 16,
     "quiz": 4,
     "chat": 4,
     "landmine": 5,
     "roles": 5,
-    "manual": 78,
+    "manual": 79,
     "compat": 63,
     "remedy": 32,
     "versus": 16
