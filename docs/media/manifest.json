@@ -1,23 +1,7 @@
 {
-  "generated_at": "2026-11-20T07:05:17+00:00",
+  "generated_at": "2026-11-20T11:06:02+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
-    {
-      "key": "posts/00007-compat",
-      "theme": "compat",
-      "title": "ISFJと相性がいいタイプ【恋愛】",
-      "description": "夜中に小さな不安が膨らむとき、誰に寄り添ってほしい？\n\n相手のタイプと照らし合わせてみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #相性 #相性診断 #恋愛 #ISFJ",
-      "images": [
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/01.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/02.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/03.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/04.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/05.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/06.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/07.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00007-compat/08.jpg"
-      ]
-    },
     {
       "key": "posts/00008-manual",
       "theme": "manual",
@@ -4824,6 +4808,68 @@
         "https://ryota-sotoguchi.github.io/post/media/posts/00381-remedy/04.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00381-remedy/05.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00381-remedy/06.jpg"
+      ]
+    },
+    {
+      "key": "posts/00382-remedy",
+      "theme": "remedy",
+      "title": "ESFPの人に会いたくない日の処方箋",
+      "description": "今日は誰とも会いたくない自分を否定しないで\n\nしんどい日のために保存しておいて\n\n#MBTI #mbti診断 #16personalities #性格診断 #処方箋 #メンタルケア #ESFP",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00382-remedy/06.jpg"
+      ]
+    },
+    {
+      "key": "posts/00383-quiz",
+      "theme": "quiz",
+      "title": "デート中の一言、どのタイプ？",
+      "description": "デート中の一言で「これだ！」と当てられる？6問挑戦してみて\n\n何問正解できた？コメントで点数を教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #心理テスト #クイズ #16タイプ #INTJ #INTP #ENFJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/10.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/11.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/12.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/13.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00383-quiz/14.jpg"
+      ]
+    },
+    {
+      "key": "posts/00384-chat",
+      "theme": "chat",
+      "title": "『今から行っていい？』と言われた時の返信16タイプ",
+      "description": "「今から行っていい？」でその人の本性が5秒で透ける\n\n自分ならどう返す？そのままコピーして使ってね\n\n#MBTI #mbti診断 #16personalities #性格診断 #LINE #返信 #16タイプ #INFP #INFJ #ENFP #INTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/08.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/09.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/10.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/11.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/12.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/13.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/14.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/15.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/16.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/17.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00384-chat/18.jpg"
       ]
     },
     {
