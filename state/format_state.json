@@ -1,11 +1,11 @@
 {
-  "next_seq": 377,
+  "next_seq": 380,
   "series_count": 15,
   "series": {
     "format": "remedy",
     "angle": "人に会いたくない日",
     "number": 15,
-    "position": 10
+    "position": 13
   },
   "between": 0,
   "one_offs": 56,
@@ -18,7 +18,7 @@
     "roles": 6,
     "manual": 79,
     "compat": 79,
-    "remedy": 42,
+    "remedy": 45,
     "versus": 16
   },
   "extra_topics": {

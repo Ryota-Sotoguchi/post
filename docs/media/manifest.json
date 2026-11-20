@@ -1,51 +1,7 @@
 {
-  "generated_at": "2026-11-19T23:05:08+00:00",
+  "generated_at": "2026-11-20T03:05:39+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
-    {
-      "key": "posts/00005-manual",
-      "theme": "manual",
-      "title": "INTPの取扱説明書",
-      "description": "話しかける前に結論出してるかも。INTPの本音と距離感\n\n当てはまったら保存して、その人に送ってみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #取扱説明書 #INTP",
-      "images": [
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/01.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/02.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/03.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/04.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/05.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/06.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/07.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/08.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/09.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00005-manual/10.jpg"
-      ]
-    },
-    {
-      "key": "posts/00006-gallery",
-      "theme": "gallery",
-      "title": "好きな人と目が合った時の16タイプ",
-      "description": "目が合った瞬間、胸の中で何が起きる？自分の反応を探してみて\n\nあなたのタイプはどうだった？コメントで教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #16タイプ #あるある",
-      "images": [
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/01.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/02.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/03.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/04.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/05.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/06.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/07.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/08.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/09.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/10.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/11.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/12.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/13.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/14.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/15.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/16.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/17.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00006-gallery/18.jpg"
-      ]
-    },
     {
       "key": "posts/00007-compat",
       "theme": "compat",
@@ -4798,6 +4754,48 @@
         "https://ryota-sotoguchi.github.io/post/media/posts/00376-remedy/04.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00376-remedy/05.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00376-remedy/06.jpg"
+      ]
+    },
+    {
+      "key": "posts/00377-remedy",
+      "theme": "remedy",
+      "title": "ESTJの人に会いたくない日の処方箋",
+      "description": "今日は誰にも会いたくないESTJがほっとする処方箋\n\nしんどい日のために保存しておいて\n\n#MBTI #mbti診断 #16personalities #性格診断 #処方箋 #メンタルケア #ESTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00377-remedy/06.jpg"
+      ]
+    },
+    {
+      "key": "posts/00378-remedy",
+      "theme": "remedy",
+      "title": "ESFJの人に会いたくない日の処方箋",
+      "description": "今日は誰にもいい顔したくないあなたへ、ひと言で効く処方箋。\n\nしんどい日のために保存しておいて\n\n#MBTI #mbti診断 #16personalities #性格診断 #処方箋 #メンタルケア #ESFJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00378-remedy/06.jpg"
+      ]
+    },
+    {
+      "key": "posts/00379-remedy",
+      "theme": "remedy",
+      "title": "ISTPの人に会いたくない日の処方箋",
+      "description": "今日、誰にも会いたくないISTPへ。たったこれだけでいい\n\nしんどい日のために保存しておいて\n\n#MBTI #mbti診断 #16personalities #性格診断 #処方箋 #メンタルケア #ISTP",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00379-remedy/06.jpg"
       ]
     },
     {
