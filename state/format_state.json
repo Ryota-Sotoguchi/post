@@ -1,12 +1,12 @@
 {
-  "next_seq": 395,
+  "next_seq": 397,
   "series_count": 16,
   "series": null,
-  "between": 4,
-  "one_offs": 60,
+  "between": 2,
+  "one_offs": 62,
   "cursors": {
-    "gallery": 17,
-    "ranking": 17,
+    "gallery": 18,
+    "ranking": 18,
     "quiz": 6,
     "chat": 6,
     "landmine": 7,
