@@ -1,13 +1,8 @@
 {
-  "next_seq": 412,
+  "next_seq": 415,
   "series_count": 17,
-  "series": {
-    "format": "manual",
-    "angle": "家族",
-    "number": 17,
-    "position": 13
-  },
-  "between": 0,
+  "series": null,
+  "between": 4,
   "one_offs": 64,
   "cursors": {
     "gallery": 18,
@@ -16,7 +11,7 @@
     "chat": 7,
     "landmine": 7,
     "roles": 7,
-    "manual": 92,
+    "manual": 95,
     "compat": 79,
     "remedy": 48,
     "versus": 24
