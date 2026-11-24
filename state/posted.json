@@ -1959,6 +1959,76 @@
       "publish_id": "p_inbox_url~v2.7708265426748459060",
       "posted_at": "2026-11-15T05:28:05+00:00",
       "status": "SENT"
+    },
+    {
+      "key": "posts/00241-quiz",
+      "title": "LINEでよく出る一言、どのタイプ？",
+      "publish_id": "p_inbox_url~v2.7711831234363901970",
+      "posted_at": "2026-11-24T20:04:28+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00242-chat",
+      "title": "急に『今日空いてる？』と送られた時の返信16タイプ",
+      "publish_id": "p_inbox_url~v2.7711831235873785864",
+      "posted_at": "2026-11-24T20:04:39+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00243-versus",
+      "title": "INFPとINFJ、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831318283175954",
+      "posted_at": "2026-11-24T20:04:49+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00244-versus",
+      "title": "ENFPとESFP、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831321182390279",
+      "posted_at": "2026-11-24T20:05:00+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00245-versus",
+      "title": "INTJとINTP、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831413137360904",
+      "posted_at": "2026-11-24T20:05:11+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00246-versus",
+      "title": "ENTJとESTJ、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831414819375111",
+      "posted_at": "2026-11-24T20:05:22+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00247-versus",
+      "title": "ISFJとISTJ、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831413137623048",
+      "posted_at": "2026-11-24T20:05:33+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00248-versus",
+      "title": "ENFJとESFJ、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831570222516232",
+      "posted_at": "2026-11-24T20:05:44+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00249-versus",
+      "title": "ISTPとISFP、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831592615839762",
+      "posted_at": "2026-11-24T20:05:55+00:00",
+      "status": "SENT"
+    },
+    {
+      "key": "posts/00250-versus",
+      "title": "ENTPとESTP、どっち？",
+      "publish_id": "p_inbox_url~v2.7711831693295978503",
+      "posted_at": "2026-11-24T20:06:05+00:00",
+      "status": "SENT"
     }
   ]
 }
