@@ -1,11 +1,11 @@
 {
-  "next_seq": 422,
+  "next_seq": 425,
   "series_count": 18,
   "series": {
     "format": "compat",
     "angle": "チーム",
     "number": 18,
-    "position": 3
+    "position": 6
   },
   "between": 0,
   "one_offs": 68,
@@ -17,7 +17,7 @@
     "landmine": 8,
     "roles": 8,
     "manual": 95,
-    "compat": 82,
+    "compat": 85,
     "remedy": 48,
     "versus": 24
   },
