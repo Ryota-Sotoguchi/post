@@ -1,18 +1,23 @@
 {
-  "next_seq": 417,
-  "series_count": 17,
-  "series": null,
-  "between": 2,
-  "one_offs": 66,
+  "next_seq": 420,
+  "series_count": 18,
+  "series": {
+    "format": "compat",
+    "angle": "チーム",
+    "number": 18,
+    "position": 1
+  },
+  "between": 0,
+  "one_offs": 68,
   "cursors": {
-    "gallery": 18,
-    "ranking": 18,
+    "gallery": 19,
+    "ranking": 19,
     "quiz": 7,
     "chat": 7,
     "landmine": 8,
     "roles": 8,
     "manual": 95,
-    "compat": 79,
+    "compat": 80,
     "remedy": 48,
     "versus": 24
   },
