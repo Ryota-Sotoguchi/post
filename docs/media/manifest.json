@@ -1,33 +1,7 @@
 {
-  "generated_at": "2026-11-24T23:05:52+00:00",
+  "generated_at": "2026-11-25T03:06:02+00:00",
   "base_url": "https://ryota-sotoguchi.github.io/post/media",
   "posts": [
-    {
-      "key": "posts/00031-gallery",
-      "theme": "gallery",
-      "title": "褒められた時の本音の16タイプ",
-      "description": "褒められた瞬間、心が勝手に反応する――あなたはどの台詞にドキッとする？\n\nあなたのタイプはどうだった？コメントで教えて\n\n#MBTI #mbti診断 #16personalities #性格診断 #16タイプ #あるある #INFP #INFJ #ENFP #INTJ",
-      "images": [
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/01.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/02.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/03.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/04.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/05.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/06.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/07.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/08.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/09.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/10.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/11.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/12.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/13.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/14.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/15.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/16.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/17.jpg",
-        "https://ryota-sotoguchi.github.io/post/media/posts/00031-gallery/18.jpg"
-      ]
-    },
     {
       "key": "posts/00032-manual",
       "theme": "manual",
@@ -5168,6 +5142,54 @@
         "https://ryota-sotoguchi.github.io/post/media/posts/00426-compat/06.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00426-compat/07.jpg",
         "https://ryota-sotoguchi.github.io/post/media/posts/00426-compat/08.jpg"
+      ]
+    },
+    {
+      "key": "posts/00427-compat",
+      "theme": "compat",
+      "title": "ISTJと相性がいいタイプ【チーム】",
+      "description": "会議で急に方針がぶれたとき、誰を頼る？\n\n相手のタイプと照らし合わせてみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #相性 #相性診断 #ISTJ #ESTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00427-compat/08.jpg"
+      ]
+    },
+    {
+      "key": "posts/00428-compat",
+      "theme": "compat",
+      "title": "ISFJと相性がいいタイプ【チーム】",
+      "description": "会議で静かに全部動かしてるのは誰か考えたことある？\n\n相手のタイプと照らし合わせてみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #相性 #相性診断 #ISFJ #ISTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00428-compat/08.jpg"
+      ]
+    },
+    {
+      "key": "posts/00429-compat",
+      "theme": "compat",
+      "title": "ESTJと相性がいいタイプ【チーム】",
+      "description": "会議で「まずこれをやる」と言いたくなる相手は？\n\n相手のタイプと照らし合わせてみて\n\n#MBTI #mbti診断 #16personalities #性格診断 #相性 #相性診断 #ESTJ #ISTJ",
+      "images": [
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/01.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/02.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/03.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/04.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/05.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/06.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/07.jpg",
+        "https://ryota-sotoguchi.github.io/post/media/posts/00429-compat/08.jpg"
       ]
     },
     {
