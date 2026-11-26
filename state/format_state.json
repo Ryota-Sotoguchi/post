@@ -1,19 +1,24 @@
 {
-  "next_seq": 437,
-  "series_count": 18,
-  "series": null,
-  "between": 2,
-  "one_offs": 70,
+  "next_seq": 440,
+  "series_count": 19,
+  "series": {
+    "format": "remedy",
+    "angle": "眠れない夜",
+    "number": 19,
+    "position": 1
+  },
+  "between": 0,
+  "one_offs": 72,
   "cursors": {
     "gallery": 19,
     "ranking": 19,
     "quiz": 8,
     "chat": 8,
-    "landmine": 8,
-    "roles": 8,
+    "landmine": 9,
+    "roles": 9,
     "manual": 95,
     "compat": 95,
-    "remedy": 48,
+    "remedy": 49,
     "versus": 24
   },
   "extra_topics": {
