@@ -1,11 +1,11 @@
 {
-  "next_seq": 440,
+  "next_seq": 442,
   "series_count": 19,
   "series": {
     "format": "remedy",
     "angle": "眠れない夜",
     "number": 19,
-    "position": 1
+    "position": 3
   },
   "between": 0,
   "one_offs": 72,
@@ -18,7 +18,7 @@
     "roles": 9,
     "manual": 95,
     "compat": 95,
-    "remedy": 49,
+    "remedy": 51,
     "versus": 24
   },
   "extra_topics": {
