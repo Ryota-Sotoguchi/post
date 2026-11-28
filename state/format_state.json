@@ -1,20 +1,25 @@
 {
-  "next_seq": 457,
-  "series_count": 19,
-  "series": null,
-  "between": 2,
-  "one_offs": 74,
+  "next_seq": 460,
+  "series_count": 20,
+  "series": {
+    "format": "versus",
+    "angle": "",
+    "number": 20,
+    "position": 1
+  },
+  "between": 0,
+  "one_offs": 76,
   "cursors": {
     "gallery": 20,
     "ranking": 20,
-    "quiz": 8,
-    "chat": 8,
+    "quiz": 9,
+    "chat": 9,
     "landmine": 9,
     "roles": 9,
     "manual": 95,
     "compat": 95,
     "remedy": 64,
-    "versus": 24
+    "versus": 25
   },
   "extra_topics": {
     "gallery": [],
